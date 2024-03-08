@@ -1,0 +1,5 @@
+*.mlx binary
+*.mat binary
+*.fig binary
+*.mlapp binary
+*.m text eol=lf

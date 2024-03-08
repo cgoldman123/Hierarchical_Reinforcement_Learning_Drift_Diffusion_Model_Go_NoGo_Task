@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+#SBATCH --partition=c2_gpu
+#SBATCH --ntasks=48
+#SBATCH --mem=6000
+#SBATCH --nodes=1
+#SBATCH --workdir=/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal
+#SBATCH --begin=now
+#SBATCH --job-name=RL_DDM_FIT_Hierarchichal
+#SBATCH --time=3:00:00
+
+#################################################
+
+SUBJECTS=$1
+export SUBJECTS
+
+RESULTS=$2
+export RESULTS
+
+FIT_HIERARCHICALLY=$3
+export FIT_HIERARCHICALLY
+
+FIELD=$4
+export FIELD
+
+module load matlab/2022a
+run_file='/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/GNG_main_hierarchichal_RLDDM.m'
+matlab -nodisplay -nosplash < ${run_file}
