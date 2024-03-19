@@ -134,12 +134,8 @@ for k = 1:4
     
     % re-initialise and invert the full (first) model
     %----------------------------------------------------------------------
-    try, 
-        DCM  = GNG_spm_dcm_fit(DCM,use_parfor); 
-    catch e
-        disp(e);
-        break;  
-    end
+    DCM  = GNG_spm_dcm_fit(DCM,use_parfor); 
+
     
     if(~fit_hierarchically)
         break;

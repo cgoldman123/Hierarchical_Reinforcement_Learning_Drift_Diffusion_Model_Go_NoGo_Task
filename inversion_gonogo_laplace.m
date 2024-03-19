@@ -55,6 +55,7 @@ M.L     = @(P,M,U,Y)spm_mdp_L(P,M,U,Y);  % log-likelihood function
 M.pE    = pE;                            % prior means (parameters)
 M.pC    = pC;                            % prior variance (parameters)
 M.use_ddm = DCM.use_ddm;                 % indicate if want to use ddm
+M.ddm_mapping = DCM.ddm_mapping;         % specify mapping of RL to DDM params if using DDM
 M.priors = DCM.MDP;
 M.noprint = 1;
 
@@ -86,42 +87,21 @@ if ~isstruct(P); P = spm_unvec(P,M.pE); end
 
 % retransform params
 field = fieldnames(M.pE);
+
+
 for i = 1:length(field)
-    if strcmp(field{i},'prior_a')
-        params.(field{i}) = P.(field{i});
-    elseif strcmp(field{i},'zeta')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));        
-    elseif strcmp(field{i},'rs')
-        params.(field{i}) = exp(P.(field{i}));
-    elseif strcmp(field{i},'la')
-        params.(field{i}) = exp(P.(field{i}));   
-    elseif strcmp(field{i},'outcome_sensitivity')
-        params.(field{i}) = exp(P.(field{i}));       
-    elseif strcmp(field{i},'pi_win')
-        params.(field{i}) = exp(P.(field{i}));
-    elseif strcmp(field{i},'pi_loss')
-        params.(field{i}) = exp(P.(field{i}));      
-    elseif strcmp(field{i},'pi')
-        params.(field{i}) = exp(P.(field{i})); 
-    elseif strcmp(field{i},'eta_win')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));
-    elseif strcmp(field{i},'eta_loss')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));
-    elseif strcmp(field{i},'beta')
-        params.(field{i}) = exp(P.(field{i}));
-    elseif strcmp(field{i},'a')
-        params.(field{i}) = exp(P.(field{i}));
-    elseif strcmp(field{i},'alpha_win')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));
-    elseif strcmp(field{i},'alpha')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));
-    elseif strcmp(field{i},'alpha_loss')
-        params.(field{i}) = 1/(1+exp(-P.(field{i})));
+    if (strcmp(field{i},'alpha_win') || strcmp(field{i},'alpha_loss') || strcmp(field{i},'alpha')...
+            || strcmp(field{i},'w') || strcmp(field{i},'zeta')) 
+        params.(field{i}) = 1/(1+exp(-P.(field{i})));  
     elseif strcmp(field{i},'T')
         params.(field{i}) = 1.5*exp(P.(field{i})) / (exp(P.(field{i}))+1);
+    elseif (strcmp(field{i},'beta') || strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
+        strcmp(field{i},'la') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
+        strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
+        params.(field{i}) = exp(P.(field{i})); 
     else
         fprintf("Warning: one of parameters not being properly transformed. See inversion_gonogo_laplace");
-        params.(field{i}) = exp(P.(field{i}));
+        error("error");
     end
 end
 
@@ -134,8 +114,10 @@ for i = 1:length(priors_names)
         params.(priors_names{i}) = priors.(priors_names{i});
     end
 end
-U.field = field;
-L = likfun_gonogo(params,U,M.use_ddm);
+settings.field = field;
+settings.use_ddm = M.use_ddm;
+settings.ddm_mapping = M.ddm_mapping;
+L = likfun_gonogo(params,U,settings);
 if (~isreal(L))
     sprintf('LL is NOT REAL for %s\n',U.subject);
 end

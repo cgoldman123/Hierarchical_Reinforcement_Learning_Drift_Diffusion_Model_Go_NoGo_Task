@@ -1,4 +1,5 @@
-function [lik, latents] = likfun_gonogo(x,data,use_ddm)
+function [lik, latents] = likfun_gonogo(x,data,settings)
+    sigmoid_adjusted = @(x) 1 ./ (1 + exp(-x*.125));
     dbstop if error
     rng(23);
     % Likelihood function for Go/NoGo task.
@@ -24,6 +25,12 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
     %
     % Carter Goldman and Sam Gershman, 2024
     
+    % specify settings
+    use_ddm = settings.use_ddm;
+    field = settings.field;
+    ddm_mapping = settings.ddm_mapping;
+    
+    
     % if fitted_params isn't passed in, initialize to false because not
     % dealing with fitted params
     if ~isnan(data.r(1))
@@ -47,23 +54,26 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
     outcome_sensitivity = x.outcome_sensitivity;
     pi = x.pi;
     alpha = x.alpha;
+    w = x.w;
+    v = x.v;
      
     
     % if the general parameters (outcome sensitivity, pi, and alpha) are
     % being fit, use them for the value of the specific parameters 
-    if any(ismember(data.field,'outcome_sensitivity'))
+    if any(ismember(field,'outcome_sensitivity'))
         rs = outcome_sensitivity;
         la = outcome_sensitivity;
     end
-    if any(ismember(data.field,'pi'))
+    if any(ismember(field,'pi'))
         pi_win = pi;
         pi_loss = pi;
     end
-    if any(ismember(data.field,'alpha'))
+    if any(ismember(field,'alpha'))
         alpha_win = alpha;
         alpha_loss = alpha;
     end
     
+   
     
     % initialization
     lik = 0; 
@@ -83,19 +93,50 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
                                     % 3 for no go to win, 4 for no go to avoid losing
   
         
+        % calculate expected value qval
+        qval = zeta*(Q(s,2)-Q(s,1));
+                                    
         % calculate pavlovian influence
         if s == 1 || s == 3
             pav = pi_win*V(s);
         elseif s == 2 || s == 4
             pav = pi_loss*V(s);
         end
+        
+        % calculate go bias
+        go = beta;
+        
+
+        
                                     
         %%%% GET PROBABILITY OF GO RESPONSE
         if use_ddm
+            % Set v,w,a to 0 if they are not free parameters (i.e., their value
+            % comes from qval,go,pav, etc)
+            if ~any(strcmp(field,'v')); v = 0;end
+            if ~any(strcmp(field,'w')); w = 0;end
+            if ~any(strcmp(field,'a')); a = 0;end
+            
             % drift rate v
-            v = zeta*(Q(s,2)-Q(s,1)) + pav + beta;
-            % bias w
-            w = .5;
+            for i = 1:length(ddm_mapping.drift)
+                var_name = ddm_mapping.drift{i};
+                v = v + eval(var_name);
+            end
+            % starting bias w
+            if ~~length(ddm_mapping.bias)
+                for i = 1:length(ddm_mapping.bias)
+                    var_name = ddm_mapping.bias{i};
+                    w = w + eval(var_name);
+                end
+                w = sigmoid_adjusted(w);
+            end
+            
+            % decision threshold a
+            for i = 1:length(ddm_mapping.thresh)
+                var_name = ddm_mapping.thresh{i};
+                a = a + eval(var_name);
+            end
+            
             go_probability = integral(@(y) wfpt(y,-v,a,w),0,mx);
             % prevent negative action probability due to floating point
             % subtraction
@@ -103,16 +144,6 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
                 go_probability = .9999;
             end
                 
-            
-%             if (isnan(go_probability) || isinf(go_probability))
-%                 disp(['Bad go_probability calculated for', data.subject]);
-%                 disp("Trial: " + t);
-%                 disp("v: "+ v);
-%                 disp("a: "+ a);
-%                 disp("w: "+w);
-%                 disp("mx: "+mx);
-%                 disp(x);
-%             end
             action_probs = [1-go_probability go_probability];
         else
             weight_go = Q(s,2) + beta + pav;
@@ -159,45 +190,12 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
         end
         
         
-       
-        % let's plot how well the function does
-        % Define the time range
-%         if (t == 160 | t == 140 | t == 120 | t == 100 | t == 80 | t == 60) && fitted_params
-%             clf;
-%             mx = 1.3;
-%             rt = .3;
-%             v = .05;
-%             w = .6;
-%             a = 2;
-%             z = 0:0.01:mx; % Time from 0 to mx seconds in 0.01 second increments
-%             
-%             % Preallocate array for PDF values
-%             pdf_values = zeros(size(z));
-% 
-%             % Compute the PDF for each time value
-%             for i = 1:length(z)
-%                 pdf_values(i) = wfpt(z(i), -v, a, w);
-%             end
-% 
-%             % Plot the PDF
-%             figure;
-%             plot(z, pdf_values);
-%             hold on; % Keep the current plot
-%             line([rt rt], ylim, 'Color', 'red', 'LineWidth', 2);
-%             hold off;
-%             xlabel('Time (s)');
-%             ylabel('Probability Density');
-%             title(['Wiener Diffusion Model PDF at t = ', num2str(rt)]);
-%           clf
-%         end
-%         
-        
         %%%% Accumulate log likelihood %%%%
         if P < 0
             disp(['Negative probability density calculated for', data.subject]);
             disp(x);
         end
-        if isnan(P) || P==0 || isinf(P); P = realmin; end % avoid NaNs and zeros in the logarithm
+        if isnan(P) || P==0; P = realmin; end % avoid NaNs and zeros in the logarithm
         lik = lik + log(P);
         
         % update values
@@ -226,6 +224,4 @@ function [lik, latents] = likfun_gonogo(x,data,use_ddm)
            
     end
     
-end
-    
-    
+end 
