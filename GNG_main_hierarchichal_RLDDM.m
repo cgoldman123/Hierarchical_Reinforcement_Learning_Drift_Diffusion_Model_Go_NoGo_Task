@@ -3,27 +3,26 @@ clear all;
 rng(23);
 dbstop if error
 
-plot = true;
+plot = false;
 use_ddm = true;
 SIM = false;
 FIT = true;
-use_parfor = false;
+use_parfor = true;
 
 % load the data in
 if ispc
     root = 'L:';
-    subjects = ["AB050"];
-    %subjects = ["AB050", "AG134","AO679", "BB483", "BC903"];
+    %subjects = ["BC312"];
+    subjects = ["BB483", "BC903"];
     fit_hierarchically = false;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
     % v should not be fit, respectively
-    DCM.field = {'alpha'; 'outcome_sensitivity'; 'beta'; 'zeta'; 'pi'; 'v'};
+    DCM.field = {'T';'alpha'; 'outcome_sensitivity'; 'beta'; 'pi'; 'a';'w'};
     %DCM.field = {'a'; 'w';'T';'pi'};
-    %DCM.ddm_mapping.drift = {'qval'; 'pav'; 'go'};
-    DCM.ddm_mapping.thresh = {'pav';'go'};
-    DCM.ddm_mapping.bias = {'qval'};
-    DCM.ddm_mapping.drift = {};
+    DCM.ddm_mapping.drift = {'qval'; 'pav'; 'go'};
+    DCM.ddm_mapping.thresh = {};
+    DCM.ddm_mapping.bias = {};
     
 else
     root = '/media/labs';
@@ -71,7 +70,7 @@ if SIM
         gen_params.alpha_win = .5;
         gen_params.alpha_loss = .5;
         gen_params.beta = .5;
-        gen_params.zeta = .5;
+        gen_params.zeta = 1;
         gen_params.pi_win = .5;
         gen_params.pi_loss = .5;
         gen_params.T = .25;
@@ -99,6 +98,7 @@ if FIT
     estimation_prior.a = 2;
     estimation_prior.w = .5;
     estimation_prior.v = .5;
+    estimation_prior.contaminant_prob = 0;
     DCM.MDP = estimation_prior;
     DCM.use_ddm = use_ddm;
     DCM.model_type = model_type;
@@ -138,6 +138,8 @@ if FIT
                 disp(['Could not load' fileName]);
             end
         end
+        % determine which RTs to exclude
+        GCM = analyze_RTs(GCM);
     end
     fprintf('Fitting GCM of length %d\n',length(GCM));
     [fit_results,gcm,peb,m] = fit_gonogo_laplace(GCM,plot);

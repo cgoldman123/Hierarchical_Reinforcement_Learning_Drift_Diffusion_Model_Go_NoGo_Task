@@ -91,7 +91,7 @@ field = fieldnames(M.pE);
 
 for i = 1:length(field)
     if (strcmp(field{i},'alpha_win') || strcmp(field{i},'alpha_loss') || strcmp(field{i},'alpha')...
-            || strcmp(field{i},'w') || strcmp(field{i},'zeta')) 
+            || strcmp(field{i},'w') || strcmp(field{i},'zeta') || strcmp(field{i},'contaminant_prob')) 
         params.(field{i}) = 1/(1+exp(-P.(field{i})));  
     elseif strcmp(field{i},'T')
         params.(field{i}) = 1.5*exp(P.(field{i})) / (exp(P.(field{i}))+1);

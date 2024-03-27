@@ -14,7 +14,7 @@ for k = 1:length(GCM)
     for i = 1:length(DCM.field)
         field = DCM.field{i};
         if (strcmp(field,'alpha_win') || strcmp(field,'alpha_loss') || strcmp(field,'alpha')...
-                || strcmp(field,'w') || strcmp(field,'zeta'))
+                || strcmp(field,'w') || strcmp(field,'zeta') || strcmp(field,'contaminant_prob'))
             pE.(field) = log(DCM.MDP.(field)/(1-DCM.MDP.(field)));      % in logit-space - bounded between 0 and 1!
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'T')
@@ -60,7 +60,7 @@ for k = 1:length(gcm)
     field = fieldnames(DCM.Ep);
     for i = 1:length(field)
         if (strcmp(field{i},'alpha_win') || strcmp(field{i},'alpha_loss') || strcmp(field{i},'alpha')...
-                || strcmp(field{i},'w') || strcmp(field{i},'zeta')) 
+                || strcmp(field{i},'w') || strcmp(field{i},'zeta') || strcmp(field{i},'contaminant_prob')) 
             posterior.(field{i}) = 1/(1+exp(-DCM.Ep.(field{i})));  
         elseif strcmp(field{i},'T')
             posterior.(field{i}) = 1.5*exp(DCM.Ep.(field{i})) / (exp(DCM.Ep.(field{i}))+1);
@@ -96,11 +96,11 @@ for k = 1:length(gcm)
     %     states_block = latents.trial_type;
     %     plot_gonogo(model_output,states_block);
     % end
-
-    avg_action_probability = mean(latents.action_probabilities);
     fit_results(k).subject = DCM.subject;
-    fit_results(k).avg_action_probability = avg_action_probability;
-    fit_results(k).model_accuracy = sum(latents.action_probabilities > .5)/length(latents.action_probabilities);
+    % get non-nan action probs/model acc
+    non_nan_action_prob = latents.action_probabilities(~isnan(latents.action_probabilities));
+    fit_results(k).avg_action_probability = mean(non_nan_action_prob);
+    fit_results(k).model_accuracy = sum(non_nan_action_prob > .5)/length(non_nan_action_prob);
     fit_results(k).latents = latents;
     fit_results(k).prior = prior;
     fit_results(k).posterior = posterior;
