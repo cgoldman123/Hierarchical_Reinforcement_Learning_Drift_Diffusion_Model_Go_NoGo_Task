@@ -13,7 +13,7 @@ use_parfor = true;
 if ispc
     root = 'L:';
     %subjects = ["BC312"];
-    subjects = ["BB483", "BC903"];
+    subjects = ["BC027","BC034"];
     fit_hierarchically = false;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
