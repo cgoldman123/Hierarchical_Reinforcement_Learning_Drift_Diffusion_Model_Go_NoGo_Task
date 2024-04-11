@@ -5,6 +5,7 @@ import re
 
 results = sys.argv[1]
 fit_hierarchical = sys.argv[2]
+use_parfor = sys.argv[3]
 
 if not os.path.exists(results):
     os.makedirs(results)
@@ -73,12 +74,12 @@ for index, model in enumerate(models, start=1):
     stderr_name = f"{combined_results_dir}/logs/hierarchichal-%J.stderr"
 
     jobname = f'GNG-Model-{index}'
-    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} \"{subject_list}\" \"{combined_results_dir}\" \"{fit_hierarchical}\" \"{field}\" \"{drift_mapping}\" \"{bias_mapping}\" \"{thresh_mapping}\"")
+    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} \"{subject_list}\" \"{combined_results_dir}\" \"{fit_hierarchical}\" \"{field}\" \"{drift_mapping}\" \"{bias_mapping}\" \"{thresh_mapping}\" \"{use_parfor}\"")
     print(f"SUBMITTED JOB [{jobname}]")
-    break
+    
 
 
 
 
-# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/multiple_models_test 0
+# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/mult_models_fixed_zero_thresh 1 1
 # joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel

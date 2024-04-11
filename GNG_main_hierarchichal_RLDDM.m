@@ -7,28 +7,29 @@ plot = false;
 use_ddm = true;
 SIM = false;
 FIT = true;
-use_parfor = true;
 
 % load the data in
 if ispc
     root = 'L:';
     %subjects = ["BC312"];
-    subjects = ["BC027","BC034"];
-    fit_hierarchically = false;
+    subjects = ["AB434","AB434"];
+    fit_hierarchically = true;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
     % v should not be fit, respectively
-    DCM.field = {'T';'alpha'; 'outcome_sensitivity'; 'beta'; 'pi'; 'a';'w'};
+    DCM.field = {'T';'alpha'; 'outcome_sensitivity'; 'beta'; 'pi'; 'v';'a'};
+
     %DCM.field = {'a'; 'w';'T';'pi'};
-    DCM.ddm_mapping.drift = {'qval'; 'pav'; 'go'};
+    DCM.ddm_mapping.drift = {};
     DCM.ddm_mapping.thresh = {};
-    DCM.ddm_mapping.bias = {};
+    DCM.ddm_mapping.bias = {'qval'; 'pav'; 'go'};
+    use_parfor = false;
     
 else
     root = '/media/labs';
     subjects = cellstr(strsplit(getenv('SUBJECTS'),","));
     results_dir = getenv('RESULTS');
-    fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'),1);
+    fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'),'1');
     DCM.field = cellstr(strsplit(getenv('FIELD'),","));
     DCM.ddm_mapping.thresh = cellstr(strsplit(getenv('THRESH_MAPPING'),","));
     DCM.ddm_mapping.bias = cellstr(strsplit(getenv('BIAS_MAPPING'),","));
@@ -36,6 +37,7 @@ else
     if strcmp(DCM.ddm_mapping.thresh,''); DCM.ddm_mapping.thresh={};end
     if strcmp(DCM.ddm_mapping.drift,''); DCM.ddm_mapping.drift={};end
     if strcmp(DCM.ddm_mapping.bias,''); DCM.ddm_mapping.bias={};end
+    use_parfor = strcmp(getenv('USE_PARFOR'),'1');
 end    
 addpath([root '/rsmith/all-studies/util/spm12/']);
 addpath([root '/rsmith/all-studies/util/spm12/toolbox/DEM/']);

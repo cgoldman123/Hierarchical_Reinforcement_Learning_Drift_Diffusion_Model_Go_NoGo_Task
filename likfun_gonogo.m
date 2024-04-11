@@ -1,4 +1,7 @@
 function [lik, latents] = likfun_gonogo(x,data,settings)
+    % turn warning off for getting nonfinite values in integral
+    warning('off', 'MATLAB:integral:NonFiniteValue');
+    found_nan=false;
     sigmoid_adjusted = @(x) 1 ./ (1 + exp(-x*.125));
     dbstop if error
     rng(23);
@@ -115,9 +118,6 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
             % calculate go bias
             go = beta;
 
-
-
-
             %%%% GET PROBABILITY OF GO RESPONSE
             if use_ddm
                 % Set v,w,a to 0 if they are not free parameters (i.e., their value
@@ -145,8 +145,14 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                     var_name = ddm_mapping.thresh{i};
                     a = a + eval(var_name);
                 end
-
-                go_probability = integral(@(y) wfpt(y,-v,a,w),0,mx);
+                % prevent bad integral calc from decision thresh of 0
+                if a == 0
+                    go_probability = .5;
+                else
+                    go_probability = integral(@(y) wfpt(y,-v,a,w),0,mx);
+                    
+                end
+                
                 % prevent negative action probability due to floating point
                 % subtraction
                 if (go_probability > .9999)
@@ -201,11 +207,13 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
 
 
             %%%% Accumulate log likelihood %%%%
-            if P < 0
-                disp(['Negative probability density calculated for', data.subject]);
-                disp(x);
-            end
-            if isnan(P) || P==0; P = realmin; end % avoid NaNs and zeros in the logarithm
+            if isnan(P) || P<=0
+                P = realmin; 
+                found_nan = true;
+                if isnan(P) || P < 0
+                    disp(['NAN or Negative pdf calculated for', data.subject]);
+                end
+            end % avoid NaNs and zeros in the logarithm
             % log likelihood is a mixture distribution of ddm and contaminant
             % (flat) distribution)
             lik = lik + log(P);     
@@ -248,6 +256,7 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
         latents.c(t) = c;
         latents.rt = data.rt;
         latents.trial_type = data.trial_type;
+        latents.found_nan = found_nan;
            
     end
     

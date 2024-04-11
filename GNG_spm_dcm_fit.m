@@ -82,6 +82,7 @@ else
         end
         P{i} = fit_dcm(DCM, model);
         fprintf('F for subject %s: %f \n', P{i}.subject{1}, P{i}.F);
+        
     end
 end
     
