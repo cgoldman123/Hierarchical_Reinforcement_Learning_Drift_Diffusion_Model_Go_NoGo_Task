@@ -143,7 +143,7 @@ for k = 1:4
     
     fprintf("Finished fitting everyone. Now running PEB\n");
        
-    % make beta 2 instead of 16 so prior variance isn't scaled down as much
+    % make beta 1 instead of 16 so prior variance isn't scaled down as much
     M.beta = 1;
     
     % empirical Bayes - over subjects

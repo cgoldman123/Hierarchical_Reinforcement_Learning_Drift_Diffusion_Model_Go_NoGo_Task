@@ -1,12 +1,13 @@
 function [lik, latents] = likfun_gonogo(x,data,settings)
     % turn warning off for getting nonfinite values in integral
     warning('off', 'MATLAB:integral:NonFiniteValue');
+    warning('off', 'MATLAB:integral:MaxIntervalCountReached');
+
     found_nan=false;
-    sigmoid_adjusted = @(x) 1 ./ (1 + exp(-x*.125));
+    sigmoid_adjusted = @(x) 1 ./ (1 + exp(-x));
     dbstop if error
     rng(23);
     % Likelihood function for Go/NoGo task.
-    
     % USAGE: [lik, latents] = likfun_gonogo(x,data)
     %
     % INPUTS:
@@ -106,8 +107,8 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
         % only calculate probability of go/nogo if not a fast RT
         if (keep_trial)
             % calculate expected value qval
-            qval = zeta*(Q(s,2)-Q(s,1));
-
+            %qval = zeta*(Q(s,2)-Q(s,1));
+            qval = (Q(s,2)-Q(s,1));
             % calculate pavlovian influence
             if s == 1 || s == 3
                 pav = pi_win*V(s);
@@ -137,20 +138,25 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                         var_name = ddm_mapping.bias{i};
                         w = w + eval(var_name);
                     end
+                    %sigmoid transform to keep between 0 and 1
                     w = 1 - sigmoid_adjusted(w);
                 end
 
                 % decision threshold a
-                for i = 1:length(ddm_mapping.thresh)
-                    var_name = ddm_mapping.thresh{i};
-                    a = a + eval(var_name);
+                if ~~length(ddm_mapping.thresh)
+                    for i = 1:length(ddm_mapping.thresh)
+                        var_name = ddm_mapping.thresh{i};
+                        a = a + eval(var_name);
+                    end
+                    % exponentiate to keep positive
+                    a = exp(a);
                 end
+                
                 % prevent bad integral calc from decision thresh of 0
                 if a == 0
                     go_probability = .5;
                 else
                     go_probability = integral(@(y) wfpt(y,-v,a,w),0,mx);
-                    
                 end
                 
                 % prevent negative action probability due to floating point

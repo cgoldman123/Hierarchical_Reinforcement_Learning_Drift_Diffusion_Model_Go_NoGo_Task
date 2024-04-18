@@ -4,22 +4,23 @@ rng(23);
 dbstop if error
 
 plot = false;
-use_ddm = true;
 SIM = false;
 FIT = true;
+use_ewma_rt_filter = false; % indicate if want to use exponentially weighted moving average to filter out fast/inaccurate RTs
 
 % load the data in
 if ispc
     root = 'L:';
     %subjects = ["BC312"];
-    subjects = ["AB434","AB434"];
+    subjects = ["BC312","AB434"];
     fit_hierarchically = true;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
     % v should not be fit, respectively
-    DCM.field = {'T';'alpha'; 'outcome_sensitivity'; 'beta'; 'pi'; 'v';'a'};
+    DCM.field = {'beta'};
 
     %DCM.field = {'a'; 'w';'T';'pi'};
+    use_ddm = false;
     DCM.ddm_mapping.drift = {};
     DCM.ddm_mapping.thresh = {};
     DCM.ddm_mapping.bias = {'qval'; 'pav'; 'go'};
@@ -31,9 +32,16 @@ else
     results_dir = getenv('RESULTS');
     fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'),'1');
     DCM.field = cellstr(strsplit(getenv('FIELD'),","));
-    DCM.ddm_mapping.thresh = cellstr(strsplit(getenv('THRESH_MAPPING'),","));
-    DCM.ddm_mapping.bias = cellstr(strsplit(getenv('BIAS_MAPPING'),","));
-    DCM.ddm_mapping.drift = cellstr(strsplit(getenv('DRIFT_MAPPING'),","));
+    use_ddm = strcmp(getenv('USE_DDM'),'1');
+    if use_ddm
+        DCM.ddm_mapping.thresh = cellstr(strsplit(getenv('THRESH_MAPPING'),","));
+        DCM.ddm_mapping.bias = cellstr(strsplit(getenv('BIAS_MAPPING'),","));
+        DCM.ddm_mapping.drift = cellstr(strsplit(getenv('DRIFT_MAPPING'),","));
+    else
+        DCM.ddm_mapping.drift = {};
+        DCM.ddm_mapping.thresh = {};
+        DCM.ddm_mapping.bias = {};
+    end
     if strcmp(DCM.ddm_mapping.thresh,''); DCM.ddm_mapping.thresh={};end
     if strcmp(DCM.ddm_mapping.drift,''); DCM.ddm_mapping.drift={};end
     if strcmp(DCM.ddm_mapping.bias,''); DCM.ddm_mapping.bias={};end
@@ -71,10 +79,10 @@ if SIM
         gen_params.la = 1;
         gen_params.alpha_win = .5;
         gen_params.alpha_loss = .5;
-        gen_params.beta = .5;
+        gen_params.beta = 0;
         gen_params.zeta = 1;
-        gen_params.pi_win = .5;
-        gen_params.pi_loss = .5;
+        gen_params.pi_win = 0;
+        gen_params.pi_loss = 0;
         gen_params.T = .25;
         gen_params.a = 2;
         simulation = sim_gonogo(gen_params,use_ddm);
@@ -91,11 +99,11 @@ if FIT
     estimation_prior.alpha_win = .5;
     estimation_prior.alpha_loss = .5;
     estimation_prior.alpha = .5;
-    estimation_prior.beta = .5;
-    estimation_prior.zeta = .5;
-    estimation_prior.pi_win = .5;
-    estimation_prior.pi_loss = .5;
-    estimation_prior.pi = .5;
+    estimation_prior.beta = 0;
+    estimation_prior.zeta = .2;
+    estimation_prior.pi_win = 0;
+    estimation_prior.pi_loss = 0;
+    estimation_prior.pi = 0;
     estimation_prior.T = .25;
     estimation_prior.a = 2;
     estimation_prior.w = .5;
@@ -134,6 +142,9 @@ if FIT
                 GCM{k,1}.U = data;
                 GCM{k,1}.fit_hierarchically = fit_hierarchically;
                 GCM{k,1}.use_parfor = use_parfor;
+                if ~use_ewma_rt_filter
+                   GCM{k,1}.U.keep_trial = ones(1,160);
+                end
                 fileName = "";
                 k = k+1;
             catch e
@@ -141,7 +152,9 @@ if FIT
             end
         end
         % determine which RTs to exclude
-        GCM = analyze_RTs(GCM);
+        if use_ewma_rt_filter
+            GCM = analyze_RTs(GCM);
+        end
     end
     fprintf('Fitting GCM of length %d\n',length(GCM));
     [fit_results,gcm,peb,m] = fit_gonogo_laplace(GCM,plot);

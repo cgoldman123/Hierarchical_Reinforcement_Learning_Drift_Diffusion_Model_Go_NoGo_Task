@@ -95,10 +95,16 @@ for i = 1:length(field)
         params.(field{i}) = 1/(1+exp(-P.(field{i})));  
     elseif strcmp(field{i},'T')
         params.(field{i}) = 1.5*exp(P.(field{i})) / (exp(P.(field{i}))+1);
-    elseif (strcmp(field{i},'beta') || strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
-        strcmp(field{i},'la') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
-        strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
+%     elseif (strcmp(field{i},'beta') || strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
+%         strcmp(field{i},'la') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
+%         strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
+%         params.(field{i}) = exp(P.(field{i})); 
+    elseif (strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
+        strcmp(field{i},'la') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
         params.(field{i}) = exp(P.(field{i})); 
+    elseif (strcmp(field{i},'beta') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
+        strcmp(field{i},'pi'))
+        params.(field{i}) = (P.(field{i}));         
     else
         fprintf("Warning: one of parameters not being properly transformed. See inversion_gonogo_laplace");
         error("error");

@@ -20,10 +20,18 @@ for k = 1:length(GCM)
         elseif strcmp(field,'T')
             pE.(field) = log(DCM.MDP.(field)/(1.5-DCM.MDP.(field)));   % BOUND BETWEEN 0 AND 1.5
             pC{i,i}    = prior_variance;
-        elseif (strcmp(field,'beta') || strcmp(field,'a') || strcmp(field,'rs') || ...
-                strcmp(field,'la') || strcmp(field,'pi_win') || strcmp(field,'pi_loss') || ...
-                strcmp(field,'pi') || strcmp(field,'outcome_sensitivity') || strcmp(field,'v'))
+%         elseif (strcmp(field,'beta') || strcmp(field,'a') || strcmp(field,'rs') || ...
+%                 strcmp(field,'la') || strcmp(field,'pi_win') || strcmp(field,'pi_loss') || ...
+%                 strcmp(field,'pi') || strcmp(field,'outcome_sensitivity') || strcmp(field,'v'))
+%             pE.(field) = log(DCM.MDP.(field));             % in log-space (to keep positive)
+%             pC{i,i}    = prior_variance;
+        elseif strcmp(field,'a') || strcmp(field,'rs') ||  strcmp(field,'v') ||...
+                strcmp(field,'la')|| strcmp(field,'outcome_sensitivity') 
             pE.(field) = log(DCM.MDP.(field));             % in log-space (to keep positive)
+            pC{i,i}    = prior_variance;
+        elseif (strcmp(field,'beta') || strcmp(field,'pi_win') || strcmp(field,'pi_loss') || ...
+                strcmp(field,'pi'))
+            pE.(field) = (DCM.MDP.(field));             % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         else
             fprintf("Warning: one of parameters not being properly transformed. See inversion_gonogo_laplace");
@@ -64,10 +72,16 @@ for k = 1:length(gcm)
             posterior.(field{i}) = 1/(1+exp(-DCM.Ep.(field{i})));  
         elseif strcmp(field{i},'T')
             posterior.(field{i}) = 1.5*exp(DCM.Ep.(field{i})) / (exp(DCM.Ep.(field{i}))+1);
-        elseif (strcmp(field{i},'beta') || strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
-            strcmp(field{i},'la') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
-            strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
+%         elseif (strcmp(field{i},'beta') || strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
+%             strcmp(field{i},'la') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
+%             strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
+%             posterior.(field{i}) = exp(DCM.Ep.(field{i})); 
+        elseif strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
+            strcmp(field{i},'la') || strcmp(field{i},'v') || strcmp(field{i},'outcome_sensitivity')
             posterior.(field{i}) = exp(DCM.Ep.(field{i})); 
+        elseif strcmp(field{i},'beta') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
+            strcmp(field{i},'pi') 
+            posterior.(field{i}) = (DCM.Ep.(field{i})); 
         else
             fprintf("Warning: one of parameters not being properly transformed. See inversion_gonogo_laplace");
             error("error");
