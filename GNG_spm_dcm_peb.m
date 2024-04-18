@@ -529,7 +529,7 @@ for n = 1:maxit
         % otherwise, retrieve expansion point and increase regularisation
         %------------------------------------------------------------------
         t  = max(t - 1,-4);
-        load('tmp.mat');
+        %load('tmp.mat');
         
     end
     

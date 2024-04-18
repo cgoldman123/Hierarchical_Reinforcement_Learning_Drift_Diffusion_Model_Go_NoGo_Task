@@ -92,7 +92,10 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
     max_rt = max(data.rt);
     min_rt = min(data.rt);
     pdf_contaminant = 1/(max_rt-min_rt); % calculate pdf of contaminant rt, assumed to be a flat distribution from min to max (see Ratcliff and Tuerlinckx, 2002)
-
+    % remember that probability = range of possible values * pdf of possible values
+    % 1 = (max_rt-min_rt) * pdf of possible values
+    % pdf of possible values = 1/(max_rt-min_rt)
+    
     data.rt = max(eps,data.rt - T); % max reaction time is total trial time - non decision time
     mx = max(data.rt);  % use max RT in wfpt
     

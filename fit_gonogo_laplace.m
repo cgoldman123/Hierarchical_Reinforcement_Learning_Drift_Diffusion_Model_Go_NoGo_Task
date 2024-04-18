@@ -25,12 +25,12 @@ for k = 1:length(GCM)
 %                 strcmp(field,'pi') || strcmp(field,'outcome_sensitivity') || strcmp(field,'v'))
 %             pE.(field) = log(DCM.MDP.(field));             % in log-space (to keep positive)
 %             pC{i,i}    = prior_variance;
-        elseif strcmp(field,'a') || strcmp(field,'rs') ||  strcmp(field,'v') ||...
+        elseif strcmp(field,'a') || strcmp(field,'rs') || ...
                 strcmp(field,'la')|| strcmp(field,'outcome_sensitivity') 
             pE.(field) = log(DCM.MDP.(field));             % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif (strcmp(field,'beta') || strcmp(field,'pi_win') || strcmp(field,'pi_loss') || ...
-                strcmp(field,'pi'))
+                strcmp(field,'pi')) || strcmp(field,'v')
             pE.(field) = (DCM.MDP.(field));             % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         else
@@ -77,10 +77,10 @@ for k = 1:length(gcm)
 %             strcmp(field{i},'pi') || strcmp(field{i},'outcome_sensitivity') || strcmp(field{i},'v'))
 %             posterior.(field{i}) = exp(DCM.Ep.(field{i})); 
         elseif strcmp(field{i},'a') || strcmp(field{i},'rs') || ...
-            strcmp(field{i},'la') || strcmp(field{i},'v') || strcmp(field{i},'outcome_sensitivity')
+            strcmp(field{i},'la') || strcmp(field{i},'outcome_sensitivity')
             posterior.(field{i}) = exp(DCM.Ep.(field{i})); 
         elseif strcmp(field{i},'beta') || strcmp(field{i},'pi_win') || strcmp(field{i},'pi_loss') || ...
-            strcmp(field{i},'pi') 
+            strcmp(field{i},'pi')  || strcmp(field{i},'v')
             posterior.(field{i}) = (DCM.Ep.(field{i})); 
         else
             fprintf("Warning: one of parameters not being properly transformed. See inversion_gonogo_laplace");

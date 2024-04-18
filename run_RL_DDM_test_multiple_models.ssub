@@ -35,6 +35,9 @@ export THRESH_MAPPING
 USE_PARFOR=$8
 export USE_PARFOR
 
+USE_DDM=$9
+export USE_DDM
+
 
 module load matlab/2022a
 run_file='/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/GNG_main_hierarchichal_RLDDM.m'

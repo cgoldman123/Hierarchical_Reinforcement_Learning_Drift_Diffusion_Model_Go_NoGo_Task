@@ -13,17 +13,18 @@ if ispc
     root = 'L:';
     %subjects = ["BC312"];
     subjects = ["BC312","AB434"];
-    fit_hierarchically = true;
+    fit_hierarchically = false;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
     % v should not be fit, respectively
-    DCM.field = {'beta'};
+    DCM.field = {'T','alpha','outcome_sensitivity','beta','pi','w','v'};
+    %DCM.field = {'w'};
 
     %DCM.field = {'a'; 'w';'T';'pi'};
-    use_ddm = false;
+    use_ddm = true;
     DCM.ddm_mapping.drift = {};
-    DCM.ddm_mapping.thresh = {};
-    DCM.ddm_mapping.bias = {'qval'; 'pav'; 'go'};
+    DCM.ddm_mapping.thresh = {'qval','pav','go'};
+    DCM.ddm_mapping.bias = {};
     use_parfor = false;
     
 else
@@ -107,8 +108,8 @@ if FIT
     estimation_prior.T = .25;
     estimation_prior.a = 2;
     estimation_prior.w = .5;
-    estimation_prior.v = .5;
-    estimation_prior.contaminant_prob = 0;
+    estimation_prior.v = 0;
+    estimation_prior.contaminant_prob = .10;
     DCM.MDP = estimation_prior;
     DCM.use_ddm = use_ddm;
     DCM.model_type = model_type;
