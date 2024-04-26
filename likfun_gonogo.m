@@ -190,17 +190,49 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                 else
                     P = action_probability;
                 end
+                
+                 %%%% Accumulate log likelihood %%%%
+                if isnan(P) || P<=0
+                    P = realmin; 
+                    found_nan = true;
+                    if isnan(P) || P < 0
+                        disp(['NAN or Negative pdf calculated for', data.subject]);
+                    end
+                end % avoid NaNs and zeros in the logarithm
+                % log likelihood is a mixture distribution of ddm and contaminant
+                % (flat) distribution)
+                lik = lik + log(P);    
 
             %%%% SIMULATING DATA %%%%
             else
-                c = randsample(1:2, 1, true, action_probs);
-                % for go trials, simulate reaction time
-                if c == 2
-                    reaction_time = (0.5*a/v)*tanh(0.5*a*v)+T;
-                    data.rt(t) = min(reaction_time,1.5);
+                % get the probability of a go reaction time from
+                % nondecision time to max and the probability of a nogo
+                % choice (remainder)
+                min_time = T;
+                max_time = min_time+.001;
+                probs = [];
+                while max_time < 1.5
+                    probs = [probs integral(@(y) wfpt(y,-1,2,.5),min_time,max_time)];
+                    min_time = min_time+.001;
+                    max_time = min_time+.001;
                 end
-                action_probability = action_probs(c);
-                P = action_probability;
+                % add in probability of not hitting the boundary
+                probs = [probs 1-sum(probs)];
+                actions = 1:length(probs);
+                sampled_action = randsample(actions,1,true,probs);
+                if sampled_action == length(probs)
+                    % nogo sampled
+                    c = 1;
+                    data.rt(t) = nan;
+                else
+                    c = 2;
+                    data.rt(t) = T + sampled_action*.001;
+                end
+                  % for go trials, simulate reaction time
+%                 if c == 2
+%                     reaction_time = (0.5*a/v)*tanh(0.5*a*v)+T;
+%                     data.rt(t) = min(reaction_time,1.5);
+%                 end
                 % create reward matrix for 4 trial types: GTW, GAL, NGW,
                 % NGAL
                 rewardMatrix = [0, 1; -1, 0; 0, 1; -1, 0]; 
@@ -212,21 +244,11 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                 % prob_win is 80% if did correct thing, 20% otherwise
                 prob_win = 0.2 + 0.6 * did_correct_choice;
                 r = randsample(rewardMatrix(s,:), 1, true,[(1-prob_win) prob_win]); 
-            end
-
-
-            %%%% Accumulate log likelihood %%%%
-            if isnan(P) || P<=0
-                P = realmin; 
-                found_nan = true;
-                if isnan(P) || P < 0
-                    disp(['NAN or Negative pdf calculated for', data.subject]);
-                end
-            end % avoid NaNs and zeros in the logarithm
-            % log likelihood is a mixture distribution of ddm and contaminant
-            % (flat) distribution)
-            lik = lik + log(P);     
-
+            
+                P = nan;
+                action_probability = nan;
+            
+            end 
         end
         
         % update values
@@ -263,10 +285,10 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
         end
         latents.r(t) = r;
         latents.c(t) = c;
-        latents.rt = data.rt;
+        latents.rt(t) = data.rt(t);
         latents.trial_type = data.trial_type;
         latents.found_nan = found_nan;
-           
+          
     end
     
 end 

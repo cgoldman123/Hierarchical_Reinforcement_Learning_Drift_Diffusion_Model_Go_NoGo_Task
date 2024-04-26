@@ -2,11 +2,11 @@
 % REMEMBER TO CHANGE THE INPU
 function extractparams()
 % input file
-file = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/fixed_neg_action_prob_hierarchical/hierarchichal_fit_results.mat';
+file = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/mult_models_405_pts/model1/hierarchichal_fit_results.mat';
 % loads a file called fit_results
 load(file);
 % results location
-results_dir = 'L:\rsmith\lab-members\cgoldman\go_no_go\r_stats\model_results\fixed_hierarchical.csv';
+results_dir = 'L:\rsmith\lab-members\cgoldman\go_no_go\r_stats\model_results\winning_model_405_pts.csv';
 results_table = table;
 for i = 1:length(fit_results)
     % For each struct, extract its fields into separate variables
