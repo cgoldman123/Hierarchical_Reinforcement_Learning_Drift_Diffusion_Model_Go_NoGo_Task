@@ -14,12 +14,12 @@ if ispc
     root = 'L:';
     %subjects = ["BC312"];
     subjects = ["BC312","AB434"];
-    fit_hierarchically = false;
+    fit_hierarchically = true;
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
     % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
     % v should not be fit, respectively
-    DCM.field = {'T','alpha','outcome_sensitivity','beta','pi','w','v'};
-    %DCM.field = {'w'};
+    %DCM.field = {'T','alpha','outcome_sensitivity','beta','pi','w','v'};
+    DCM.field = {'w','beta'};
 
     %DCM.field = {'a'; 'w';'T';'pi'};
     use_ddm = true;
@@ -91,17 +91,32 @@ estimation_prior.a = 2;
 estimation_prior.w = .5;
 estimation_prior.v = 0;
 estimation_prior.contaminant_prob = .10;
+
+DCM.prior_variance = 1/2;
+
+% uncomment if want to use PEB (group-level model) to fit from winning model
+load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/peb_params_winning_model.mat']);
+DCM.prior_variance = .2607;
+peb_fields = fieldnames(peb_params_winning_model);
+for k=1:length(peb_fields)
+    estimation_prior.(peb_fields{k}) = peb_params_winning_model.(peb_fields{k});
+end
+
+
+
 DCM.MDP = estimation_prior;
 DCM.use_ddm = use_ddm;
+DCM.fit_hierarchically = fit_hierarchically;
+DCM.use_parfor = use_parfor;
 DCM.Y = [];
 
 if load_in_GCM && SIM
-    simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/simfit_mult_models_405_pts/model1/hierarchichal_gcm.mat']);
-    simmed_GCM = simmed_GCM.gcm;
+    simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_simmed.mat']);
+    simmed_GCM = simmed_GCM.GCM;
     for k=1:length(simmed_GCM)
         GCM{k,1} = DCM;
         GCM{k,1}.subject = simmed_GCM{k}.subject;
-        GCM{k,1}.U = simmed_GCM{k}.U;
+        GCM{k,1}.U = simmed_GCM{k}.U;   
     end
     
 else
@@ -138,7 +153,7 @@ else
 end
 
 if SIM
-    disp(['Parameters Simmed: ' strjoin(DCM.field)]);
+    disp('Winning Model Simmed: T,alpha,outcome_sensitivity,beta,pi,w,a');
     if use_ddm
         disp('Mapping to Drift: qval pav go');
         disp('Mapping to Decision Threshold: ');
@@ -147,8 +162,8 @@ if SIM
     fprintf('Subjects Simmed: %s\n', strjoin(subjects, ', '));
     fprintf('Simming GCM of length %d\n',length(GCM));
 end
-
-
+%save([results_dir '/GCM_winning_model_simmed'], 'GCM')
+% 
 if FIT
     disp(['Parameters Fit: ' strjoin(DCM.field)]);
     if use_ddm

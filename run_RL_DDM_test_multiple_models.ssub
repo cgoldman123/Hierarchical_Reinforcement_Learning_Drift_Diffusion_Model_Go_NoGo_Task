@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH --partition=c2_gpu
+#SBATCH --partition=c2_cpu
 #SBATCH --ntasks=48
 #SBATCH --mem=6000
 #SBATCH --nodes=1

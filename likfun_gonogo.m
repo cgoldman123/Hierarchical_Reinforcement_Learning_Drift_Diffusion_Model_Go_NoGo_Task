@@ -98,7 +98,7 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
     
     data.rt = max(eps,data.rt - T); % max reaction time is total trial time - non decision time
     mx = max(data.rt);  % use max RT in wfpt
-    
+
     for t = 1:data.N
         % data for current trial
         c = data.c(t)+1;            % choice: 1 for no go, 2 for go
@@ -212,7 +212,7 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                 max_time = min_time+.001;
                 probs = [];
                 while max_time < 1.5
-                    probs = [probs integral(@(y) wfpt(y,-1,2,.5),min_time,max_time)];
+                    probs = [probs integral(@(y) wfpt(y,-v,a,w),min_time,max_time)];
                     min_time = min_time+.001;
                     max_time = min_time+.001;
                 end

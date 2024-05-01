@@ -4,13 +4,13 @@ dbstop if error
 
 % prior expectations and covariance
 %--------------------------------------------------------------------------
-prior_variance = 2^-1;
 
 % Set up DCM
 %--------------------------------------------------------------------------
 
 for k = 1:length(GCM)
     DCM = GCM{k,1};
+    prior_variance = DCM.prior_variance;
     for i = 1:length(DCM.field)
         field = DCM.field{i};
         if (strcmp(field,'alpha_win') || strcmp(field,'alpha_loss') || strcmp(field,'alpha')...
@@ -126,6 +126,7 @@ for k = 1:length(gcm)
     fit_results(k).drift_mapping = strjoin(DCM.ddm_mapping.drift);
     fit_results(k).thresh_mapping = strjoin(DCM.ddm_mapping.thresh);
     fit_results(k).bias_mapping = strjoin(DCM.ddm_mapping.bias);
+    fit_results(k).prior_variance = DCM.prior_variance;
 end
 
 

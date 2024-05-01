@@ -82,10 +82,12 @@ for index, model in enumerate(models, start=1):
     #os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} {subject_list} {combined_results_dir} {fit_hierarchical} {field} {drift_mapping} {bias_mapping} {thresh_mapping} {use_parfor} {use_ddm}")
 
     print(f"SUBMITTED JOB [{jobname}]")
+    break
+    
     
 
 
 
 
-# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/simfit_mult_models_405_pts 1 1 1
+# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/simfit_winning_model_nonhierarchical 0 1 1
 # joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel
