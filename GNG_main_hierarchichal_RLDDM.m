@@ -4,10 +4,10 @@ rng(23);
 dbstop if error
 
 plot = false;
-SIM = true;
+SIM = false;
 FIT = true;
 use_ewma_rt_filter = false; % indicate if want to use exponentially weighted moving average to filter out fast/inaccurate RTs
-load_in_GCM = true;
+load_in_GCM = false;
 
 % load the data in
 if ispc
@@ -95,12 +95,12 @@ estimation_prior.contaminant_prob = .10;
 DCM.prior_variance = 1/2;
 
 % uncomment if want to use PEB (group-level model) to fit from winning model
-load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/peb_params_winning_model.mat']);
-DCM.prior_variance = .2607;
-peb_fields = fieldnames(peb_params_winning_model);
-for k=1:length(peb_fields)
-    estimation_prior.(peb_fields{k}) = peb_params_winning_model.(peb_fields{k});
-end
+% load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/peb_params_winning_model.mat']);
+% DCM.prior_variance = .2607;
+% peb_fields = fieldnames(peb_params_winning_model);
+% for k=1:length(peb_fields)
+%     estimation_prior.(peb_fields{k}) = peb_params_winning_model.(peb_fields{k});
+% end
 
 
 
