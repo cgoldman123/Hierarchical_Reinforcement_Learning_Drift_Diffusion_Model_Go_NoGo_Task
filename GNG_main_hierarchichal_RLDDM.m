@@ -4,10 +4,11 @@ rng(23);
 dbstop if error
 
 plot = false;
-SIM = false;
+SIM = true;
 FIT = true;
 use_ewma_rt_filter = false; % indicate if want to use exponentially weighted moving average to filter out fast/inaccurate RTs
-load_in_GCM = false;
+load_in_GCM = true;
+simulated_actions_in_GCM = false; % indicate if simulated actions in GCM already, or need to simulate using simulate_gonogo.m
 
 % load the data in
 if ispc
@@ -111,13 +112,19 @@ DCM.use_parfor = use_parfor;
 DCM.Y = [];
 
 if load_in_GCM && SIM
-    simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_simmed.mat']);
-    simmed_GCM = simmed_GCM.GCM;
+    if simulated_actions_in_GCM
+        simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_simmed.mat']);
+        simmed_GCM = simmed_GCM.GCM;
+    else
+        simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_nonhierarchical_simmed_no_actions.mat']);
+        simmed_GCM = simmed_GCM.gcm;
+        simmed_GCM = simulate_gonogo(simmed_GCM);
+    end
     for k=1:length(simmed_GCM)
         GCM{k,1} = DCM;
         GCM{k,1}.subject = simmed_GCM{k}.subject;
         GCM{k,1}.U = simmed_GCM{k}.U;   
-    end
+    end      
     
 else
     filePath = strcat(root,'/rsmith/lab-members/cgoldman/go_no_go/DDM/processed_behavioral_files_DDM/');
