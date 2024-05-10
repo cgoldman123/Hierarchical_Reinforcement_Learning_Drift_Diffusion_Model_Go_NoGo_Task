@@ -97,6 +97,7 @@ for k = 1:length(gcm)
             params.(priors_names{i}) = prior.(priors_names{i});
         end
     end
+    gcm{k}.fitted_MDP = params;
     U = DCM.U;
     settings.field = field;
     settings.use_ddm = DCM.use_ddm;

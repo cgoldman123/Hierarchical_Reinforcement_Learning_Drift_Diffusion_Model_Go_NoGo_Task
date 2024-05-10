@@ -3,55 +3,77 @@ clear all;
 rng(23);
 dbstop if error
 
-plot = false;
-SIM = true;
-FIT = true;
-use_ewma_rt_filter = false; % indicate if want to use exponentially weighted moving average to filter out fast/inaccurate RTs
-load_in_GCM = true;
-simulated_actions_in_GCM = false; % indicate if simulated actions in GCM already, or need to simulate using simulate_gonogo.m
+plot = false; % indicate if want to plot data
+FIT = true; % indicate if want to fit parameters to task data 
+SIMFIT = true; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
+
+use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted moving average to filter out fast/inaccurate RTs
 
 % load the data in
 if ispc
     root = 'L:';
-    %subjects = ["BC312"];
-    subjects = ["BC312","AB434"];
-    fit_hierarchically = true;
-    results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits';
-    % note that if ddm_mapping.thresh, bias, or drift is set, then a,w, and
-    % v should not be fit, respectively
-    %DCM.field = {'T','alpha','outcome_sensitivity','beta','pi','w','v'};
-    DCM.field = {'w','beta'};
+    subjects = ["BC312","AB434"]; % subjects to fit (or simulate)
+    fit_hierarchically = false; % indicate if you would like to fit hierarchically using parametric empirical bayes.
+    results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
+    use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
+    % RL PARAMETERS
+    % alpha - learning rate
+    % outcome_sensitivity - reward/loss sensitivity
+    % beta - go bias
+    % pi - pavlovian bias
+ 
+    % DDM Parameters
+    % T - nondecision time
+    % v - drift rate
+    % w - starting bias
+    % a - decision threshold
 
-    %DCM.field = {'a'; 'w';'T';'pi'};
-    use_ddm = true;
-    DCM.ddm_mapping.drift = {};
-    DCM.ddm_mapping.thresh = {'qval','pav','go'};
-    DCM.ddm_mapping.bias = {};
-    use_parfor = false;
+    fit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to fit
+    % indicate mapping of RL parameters to DDM (only needed if use_ddm is
+    % true)
+    fit_ddm_mapping.drift = {'qval','pav','go'}; % mapping to the drift rate
+    fit_ddm_mapping.thresh = {};  % mapping to the decision threshold
+    fit_ddm_mapping.bias = {};  % mapping to the starting bias
+    % Please note that if ddm_mapping.drift, ddm_mapping.thresh, or ddm_mapping.bias is set, 
+    % then v,a, and w should not be fit, respectively. This is because the
+    % value of the drift rate, decision threshold, and starting bias will
+    % be determined by RL parameters and should not be free parameters fit
+    % to task data.
+    
+    simfit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to simfit
+    % after having fit then simulated data.
+    simfit_ddm_mapping.drift = {'qval','pav','go'};
+    simfit_ddm_mapping.thresh = {};
+    simfit_ddm_mapping.bias = {};
+    
+    use_parfor = false; % indicate if you would like to fit tasks in parallel.
     
 else
     root = '/media/labs';
     subjects = cellstr(strsplit(getenv('SUBJECTS'),","));
     results_dir = getenv('RESULTS');
     fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'),'1');
-    DCM.field = cellstr(strsplit(getenv('FIELD'),","));
+    fit_field = cellstr(strsplit(getenv('FIT_FIELD'),","));
     use_ddm = strcmp(getenv('USE_DDM'),'1');
-    if use_ddm
-        DCM.ddm_mapping.thresh = cellstr(strsplit(getenv('THRESH_MAPPING'),","));
-        DCM.ddm_mapping.bias = cellstr(strsplit(getenv('BIAS_MAPPING'),","));
-        DCM.ddm_mapping.drift = cellstr(strsplit(getenv('DRIFT_MAPPING'),","));
-    else
-        DCM.ddm_mapping.drift = {};
-        DCM.ddm_mapping.thresh = {};
-        DCM.ddm_mapping.bias = {};
-    end
-    if strcmp(DCM.ddm_mapping.thresh,''); DCM.ddm_mapping.thresh={};end
-    if strcmp(DCM.ddm_mapping.drift,''); DCM.ddm_mapping.drift={};end
-    if strcmp(DCM.ddm_mapping.bias,''); DCM.ddm_mapping.bias={};end
+    
+    fit_ddm_mapping.thresh={};
+    fit_ddm_mapping.drift={};
+    fit_ddm_mapping.bias={};
+    if strcmp(cellstr(strsplit(getenv('FIT_THRESH_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_THRESH_MAPPING'),","));end
+    if strcmp(cellstr(strsplit(getenv('FIT_DRIFT_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_DRIFT_MAPPING'),","));end
+    if strcmp(cellstr(strsplit(getenv('FIT_BIAS_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_BIAS_MAPPING'),","));end
+
+    simfit_ddm_mapping.thresh={};
+    simfit_ddm_mapping.drift={};
+    simfit_ddm_mapping.bias={};
+    if strcmp(cellstr(strsplit(getenv('SIMFIT_THRESH_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_THRESH_MAPPING'),","));end
+    if strcmp(cellstr(strsplit(getenv('SIMFIT_DRIFT_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_DRIFT_MAPPING'),","));end
+    if strcmp(cellstr(strsplit(getenv('SIMFIT_BIAS_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_BIAS_MAPPING'),","));end
+    
     use_parfor = strcmp(getenv('USE_PARFOR'),'1');
 end    
-addpath([root '/rsmith/all-studies/util/spm12/']);
-addpath([root '/rsmith/all-studies/util/spm12/toolbox/DEM/']);
+addpath([root '/rsmith/all-studies/util/spm12/']); % change to your local directory containing spm12
+addpath([root '/rsmith/all-studies/util/spm12/toolbox/DEM/']); % change to your local directory containing spm12/toolbox/DEM
 
 if FIT
     if use_ddm && fit_hierarchically
@@ -64,7 +86,6 @@ if FIT
         model_type = 'RL fit nonhierarchically';
     end
     disp(model_type);
-    DCM.model_type = model_type;
 else
     if use_ddm 
         model_type = 'RLDDM simmed';
@@ -75,7 +96,7 @@ end
     
 
 
-
+DCM.model_type = model_type;
 estimation_prior.rs = 1;
 estimation_prior.la = 1;
 estimation_prior.outcome_sensitivity = 1;
@@ -93,83 +114,48 @@ estimation_prior.w = .5;
 estimation_prior.v = 0;
 estimation_prior.contaminant_prob = .10;
 
+DCM.ddm_mapping.drift = fit_ddm_mapping.drift;
+DCM.ddm_mapping.thresh = fit_ddm_mapping.thresh;
+DCM.ddm_mapping.bias = fit_ddm_mapping.bias;
+DCM.field = fit_field;
+
+
 DCM.prior_variance = 1/2;
-
-% uncomment if want to use PEB (group-level model) to fit from winning model
-% load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/peb_params_winning_model.mat']);
-% DCM.prior_variance = .2607;
-% peb_fields = fieldnames(peb_params_winning_model);
-% for k=1:length(peb_fields)
-%     estimation_prior.(peb_fields{k}) = peb_params_winning_model.(peb_fields{k});
-% end
-
-
-
 DCM.MDP = estimation_prior;
 DCM.use_ddm = use_ddm;
 DCM.fit_hierarchically = fit_hierarchically;
 DCM.use_parfor = use_parfor;
 DCM.Y = [];
 
-if load_in_GCM && SIM
-    if simulated_actions_in_GCM
-        simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_simmed.mat']);
-        simmed_GCM = simmed_GCM.GCM;
-    else
-        simmed_GCM = load([root '/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/helpful_matlab_objects/GCM_winning_model_nonhierarchical_simmed_no_actions.mat']);
-        simmed_GCM = simmed_GCM.gcm;
-        simmed_GCM = simulate_gonogo(simmed_GCM);
-    end
-    for k=1:length(simmed_GCM)
+% load in subjects' data
+filePath = strcat(root,'/rsmith/lab-members/cgoldman/go_no_go/DDM/processed_behavioral_files_DDM/');
+k = 1;
+for i = 1:length(subjects)
+    try
         GCM{k,1} = DCM;
-        GCM{k,1}.subject = simmed_GCM{k}.subject;
-        GCM{k,1}.U = simmed_GCM{k}.U;   
-    end      
-    
-else
-    filePath = strcat(root,'/rsmith/lab-members/cgoldman/go_no_go/DDM/processed_behavioral_files_DDM/');
-    k = 1;
-    for i = 1:length(subjects)
-        try
-            GCM{k,1} = DCM;
-            fileName = strcat(subjects(i),"_processed_behavioral_file.csv");
-            fullPath = strcat(filePath,fileName);
-            data = load_gonogo_data(fullPath);
-            data.subject = subjects(i);
-            GCM{k,1}.subject = subjects(i);
-            GCM{k,1}.U = data;
-            GCM{k,1}.fit_hierarchically = fit_hierarchically;
-            GCM{k,1}.use_parfor = use_parfor;
-            if ~use_ewma_rt_filter
-               GCM{k,1}.U.keep_trial = ones(1,160);
-            end
-            fileName = "";
-            k = k+1;
-        catch e
-            disp(['Could not load' fileName]);
+        fileName = strcat(subjects(i),"_processed_behavioral_file.csv");
+        fullPath = strcat(filePath,fileName);
+        data = load_gonogo_data(fullPath);
+        data.subject = subjects(i);
+        GCM{k,1}.subject = subjects(i);
+        GCM{k,1}.U = data;
+        GCM{k,1}.fit_hierarchically = fit_hierarchically;
+        GCM{k,1}.use_parfor = use_parfor;
+        if ~use_ewma_rt_filter
+           GCM{k,1}.U.keep_trial = ones(1,160);
         end
+        fileName = "";
+        k = k+1;
+    catch e
+        disp(['Could not load' fileName]);
     end
-    % determine which RTs to exclude
-    if use_ewma_rt_filter
-        GCM = analyze_RTs(GCM);
-    end
-    if SIM
-        GCM = simulate_gonogo(GCM);
-    end
-    
+end
+% determine which RTs to exclude
+if use_ewma_rt_filter
+    GCM = analyze_RTs(GCM);
 end
 
-if SIM
-    disp('Winning Model Simmed: T,alpha,outcome_sensitivity,beta,pi,w,a');
-    if use_ddm
-        disp('Mapping to Drift: qval pav go');
-        disp('Mapping to Decision Threshold: ');
-        disp('Mapping to Starting Bias: ');
-    end
-    fprintf('Subjects Simmed: %s\n', strjoin(subjects, ', '));
-    fprintf('Simming GCM of length %d\n',length(GCM));
-end
-%save([results_dir '/GCM_winning_model_simmed'], 'GCM')
+% end
 % 
 if FIT
     disp(['Parameters Fit: ' strjoin(DCM.field)]);
@@ -178,10 +164,10 @@ if FIT
         disp(['Mapping to Decision Threshold: ' strjoin(DCM.ddm_mapping.thresh)]);
         disp(['Mapping to Starting Bias: ' strjoin(DCM.ddm_mapping.bias)]);
     end
-    disp(['Subjects Fit: ' strjoin(subjects)]);
+    fprintf('Subjects Fit: %s\n', strjoin(subjects));
     disp(['Results Directory: ',results_dir]);
-    fprintf('Fitting GCM of length %d\n',length(GCM));
-    [fit_results,gcm,peb,m] = fit_gonogo_laplace(GCM,plot);
+    fprintf('Fitting GCM of length %d\n\n',length(GCM));
+    [fit_results,fit_gcm,fit_peb,fit_m] = fit_gonogo_laplace(GCM,plot);
 
     % close the parallel pool if still running
     poolobj = gcp('nocreate');
@@ -190,14 +176,53 @@ if FIT
     end
 
 
-    save([results_dir '/hierarchichal_fit_results'], 'fit_results');
-    save([results_dir '/hierarchichal_gcm'], 'gcm');
-    save([results_dir '/hierarchichal_m'], 'm');
+    save([results_dir '/' strrep(model_type, ' ', '_') '_results'], 'fit_results');
+    save([results_dir '/' strrep(model_type, ' ', '_') '_gcm'], 'fit_gcm');
+    save([results_dir '/' strrep(model_type, ' ', '_') '_m'], 'fit_m');
     if fit_hierarchically
-        save([results_dir '/hierarchichal_peb'], 'peb');
+        save([results_dir '/' strrep(model_type, ' ', '_') '_peb'], 'fit_peb');
+    end
+
+end
+
+if SIMFIT
+    fprintf('\nSimming data from %d subjects\n\n',length(fit_gcm));
+    simmed_GCM = simulate_gonogo(fit_gcm);
+    save([results_dir '/GCM_simmed'], 'GCM');
+    if use_ewma_rt_filter
+        simmed_GCM = analyze_RTs(simmed_GCM);
+    end
+    model_type = ['Simfit ' model_type];
+    disp(model_type);
+    disp(['Parameters simfitted: ' strjoin(simfit_field)]);
+    if use_ddm
+        disp(['Mapping to Drift: ' strjoin(simfit_ddm_mapping.drift)]);
+        disp(['Mapping to Decision Threshold: ' strjoin(simfit_ddm_mapping.thresh)]);
+        disp(['Mapping to Starting Bias: ' strjoin(simfit_ddm_mapping.bias)]);
+    end
+    
+    for k=1:length(simmed_GCM)
+        simmed_GCM{k}.field = simfit_field;
+        simmed_GCM{k}.ddm_mapping.drift = simfit_ddm_mapping.drift;
+        simmed_GCM{k}.ddm_mapping.thresh = simfit_ddm_mapping.thresh;
+        simmed_GCM{k}.ddm_mapping.bias = simfit_ddm_mapping.bias;
+    end
+    
+    fprintf('Simfitting GCM of length %d\n\n',length(simmed_GCM));
+    [simfit_results,simfit_gcm,simfit_peb,simfit_m] = fit_gonogo_laplace(simmed_GCM,plot);
+
+    % close the parallel pool if still running
+    poolobj = gcp('nocreate');
+    if ~isempty(poolobj)
+        delete(poolobj);
+    end
+    save([results_dir '/' strrep(model_type, ' ', '_') '_results'], 'simfit_results');
+    save([results_dir '/' strrep(model_type, ' ', '_') '_gcm'], 'simfit_gcm');
+    save([results_dir '/' strrep(model_type, ' ', '_') '_m'], 'simfit_m');
+    if fit_hierarchically
+        save([results_dir '/' strrep(model_type, ' ', '_') '_peb'], 'simfit_peb');
     end
 
     clear all; clf;
-
-
 end
+    
