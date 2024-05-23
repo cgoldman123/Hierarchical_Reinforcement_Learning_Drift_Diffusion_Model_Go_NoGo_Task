@@ -115,7 +115,7 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
             % calculate pavlovian influence
             if s == 1 || s == 3
                 pav = pi_win*V(s);
-            elseif s == 0 || s == 4
+            elseif s == 2 || s == 4
                 pav = pi_loss*V(s);
             end
 

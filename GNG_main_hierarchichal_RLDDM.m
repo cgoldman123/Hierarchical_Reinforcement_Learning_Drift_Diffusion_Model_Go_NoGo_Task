@@ -5,14 +5,14 @@ dbstop if error
 
 plot = false; % indicate if want to plot data
 FIT = true; % indicate if want to fit parameters to task data 
-SIMFIT = true; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
+SIMFIT = false; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
 
 use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted moving average to filter out fast/inaccurate RTs
 
 % load the data in
 if ispc
     root = 'L:';
-    subjects = ["BC312","AB434"]; % subjects to fit (or simulate)
+    subjects = ["AA071","AB434"]; % subjects to fit (or simulate)
     fit_hierarchically = false; % indicate if you would like to fit hierarchically using parametric empirical bayes.
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
     use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
@@ -50,27 +50,41 @@ if ispc
     
 else
     root = '/media/labs';
-    subjects = cellstr(strsplit(getenv('SUBJECTS'),","));
+    subjects = strsplit(getenv('SUBJECTS'), ',');
     results_dir = getenv('RESULTS');
-    fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'),'1');
-    fit_field = cellstr(strsplit(getenv('FIT_FIELD'),","));
-    use_ddm = strcmp(getenv('USE_DDM'),'1');
-    
-    fit_ddm_mapping.thresh={};
-    fit_ddm_mapping.drift={};
-    fit_ddm_mapping.bias={};
-    if strcmp(cellstr(strsplit(getenv('FIT_THRESH_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_THRESH_MAPPING'),","));end
-    if strcmp(cellstr(strsplit(getenv('FIT_DRIFT_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_DRIFT_MAPPING'),","));end
-    if strcmp(cellstr(strsplit(getenv('FIT_BIAS_MAPPING'),",")),''); fit_ddm_mapping.thresh=cellstr(strsplit(getenv('FIT_BIAS_MAPPING'),","));end
+    fit_hierarchically = strcmp(getenv('FIT_HIERARCHICALLY'), '1');
+    use_ddm = strcmp(getenv('USE_DDM'), '1');
+    fit_field = strsplit(getenv('FIT_FIELD'), ',');
+    simfit_field = strsplit(getenv('SIMFIT_FIELD'), ',');
 
-    simfit_ddm_mapping.thresh={};
-    simfit_ddm_mapping.drift={};
-    simfit_ddm_mapping.bias={};
-    if strcmp(cellstr(strsplit(getenv('SIMFIT_THRESH_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_THRESH_MAPPING'),","));end
-    if strcmp(cellstr(strsplit(getenv('SIMFIT_DRIFT_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_DRIFT_MAPPING'),","));end
-    if strcmp(cellstr(strsplit(getenv('SIMFIT_BIAS_MAPPING'),",")),''); simfit_ddm_mapping.thresh=cellstr(strsplit(getenv('SIMFIT_BIAS_MAPPING'),","));end
-    
-    use_parfor = strcmp(getenv('USE_PARFOR'),'1');
+    if use_ddm
+        fit_ddm_mapping.thresh = cellstr(strsplit(getenv('FIT_THRESH_MAPPING'),","));
+        fit_ddm_mapping.bias = cellstr(strsplit(getenv('FIT_BIAS_MAPPING'),","));
+        fit_ddm_mapping.drift = cellstr(strsplit(getenv('FIT_DRIFT_MAPPING'),","));
+        simfit_ddm_mapping.thresh = cellstr(strsplit(getenv('SIMFIT_THRESH_MAPPING'),","));
+        simfit_ddm_mapping.bias = cellstr(strsplit(getenv('SIMFIT_BIAS_MAPPING'),","));
+        simfit_ddm_mapping.drift = cellstr(strsplit(getenv('SIMFIT_DRIFT_MAPPING'),","));
+        
+    else
+        fit_ddm_mapping.drift = {};
+        fit_ddm_mapping.thresh = {};
+        fit_ddm_mapping.bias = {};
+        simfit_ddm_mapping.drift = {};
+        simfit_ddm_mapping.thresh = {};
+        simfit_ddm_mapping.bias = {};
+    end
+    if strcmp(fit_ddm_mapping.drift,''); fit_ddm_mapping.drift={};end
+    if strcmp(fit_ddm_mapping.bias,''); fit_ddm_mapping.bias={};end
+    if strcmp(fit_ddm_mapping.thresh,''); fit_ddm_mapping.thresh={};end
+    if strcmp(simfit_ddm_mapping.drift,''); simfit_ddm_mapping.drift={};end
+    if strcmp(simfit_ddm_mapping.bias,''); simfit_ddm_mapping.bias={};end
+    if strcmp(simfit_ddm_mapping.thresh,''); simfit_ddm_mapping.thresh={};end
+
+    use_parfor = strcmp(getenv('USE_PARFOR'), '1');
+    disp(fit_ddm_mapping);
+    disp(simfit_ddm_mapping);
+
+
 end    
 addpath([root '/rsmith/all-studies/util/spm12/']); % change to your local directory containing spm12
 addpath([root '/rsmith/all-studies/util/spm12/toolbox/DEM/']); % change to your local directory containing spm12/toolbox/DEM
@@ -108,11 +122,11 @@ estimation_prior.zeta = .2;
 estimation_prior.pi_win = 0;
 estimation_prior.pi_loss = 0;
 estimation_prior.pi = 0;
-estimation_prior.T = .25;
+estimation_prior.T = .001;
 estimation_prior.a = 2;
 estimation_prior.w = .5;
 estimation_prior.v = 0;
-estimation_prior.contaminant_prob = .10;
+estimation_prior.contaminant_prob = 0;
 
 DCM.ddm_mapping.drift = fit_ddm_mapping.drift;
 DCM.ddm_mapping.thresh = fit_ddm_mapping.thresh;

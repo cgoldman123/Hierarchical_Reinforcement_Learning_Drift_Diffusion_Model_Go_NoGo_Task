@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-#SBATCH --partition=c2_cpu
+#SBATCH --partition=c2_gpu
 #SBATCH --ntasks=48
 #SBATCH --mem=6000
 #SBATCH --nodes=1
 #SBATCH --workdir=/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal
 #SBATCH --begin=now
 #SBATCH --job-name=RL_DDM_FIT_Hierarchichal
-#SBATCH --time=6:00:00
+#SBATCH --time=24:00:00
 
 #################################################
 
@@ -20,22 +20,34 @@ export RESULTS
 FIT_HIERARCHICALLY=$3
 export FIT_HIERARCHICALLY
 
-FIELD=$4
-export FIELD
+FIT_FIELD=$4
+export FIT_FIELD
 
-DRIFT_MAPPING=$5
-export DRIFT_MAPPING
+FIT_DRIFT_MAPPING=$5
+export FIT_DRIFT_MAPPING
 
-BIAS_MAPPING=$6
-export BIAS_MAPPING
+FIT_BIAS_MAPPING=$6
+export FIT_BIAS_MAPPING
 
-THRESH_MAPPING=$7
-export THRESH_MAPPING
+FIT_THRESH_MAPPING=$7
+export FIT_THRESH_MAPPING
 
-USE_PARFOR=$8
+SIMFIT_FIELD=$8
+export SIMFIT_FIELD
+
+SIMFIT_DRIFT_MAPPING=$9
+export SIMFIT_DRIFT_MAPPING
+
+SIMFIT_BIAS_MAPPING=${10}
+export SIMFIT_BIAS_MAPPING
+
+SIMFIT_THRESH_MAPPING=${11}
+export SIMFIT_THRESH_MAPPING
+
+USE_PARFOR=${12}
 export USE_PARFOR
 
-USE_DDM=$9
+USE_DDM=${13}
 export USE_DDM
 
 

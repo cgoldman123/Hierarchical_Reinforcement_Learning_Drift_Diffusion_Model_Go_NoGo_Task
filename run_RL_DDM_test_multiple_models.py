@@ -63,11 +63,18 @@ models = [
 
 
 for index, model in enumerate(models, start=1):
+    if index < 26:
+        continue
     combined_results_dir = os.path.join(results, f"model{index}")
     drift_mapping = model['drift_mapping']
     bias_mapping = model['bias_mapping']
     thresh_mapping = model['thresh_mapping']
     field = model['field']
+
+    simfit_drift_mapping = drift_mapping
+    simfit_bias_mapping = bias_mapping
+    simfit_thresh_mapping = thresh_mapping
+    simfit_field = field
 
     if not os.path.exists(f"{combined_results_dir}/logs"):
         os.makedirs(f"{combined_results_dir}/logs")
@@ -78,16 +85,17 @@ for index, model in enumerate(models, start=1):
     stderr_name = f"{combined_results_dir}/logs/hierarchichal-%J.stderr"
 
     jobname = f'GNG-Model-{index}'
-    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} \"{subject_list}\" \"{combined_results_dir}\" \"{fit_hierarchical}\" \"{field}\" \"{drift_mapping}\" \"{bias_mapping}\" \"{thresh_mapping}\" \"{use_parfor}\" \"{use_ddm}\"")
+    os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} \"{subject_list}\" \"{combined_results_dir}\" \"{fit_hierarchical}\" \"{field}\" \"{drift_mapping}\" \"{bias_mapping}\" \"{thresh_mapping}\" \"{simfit_field}\" \"{simfit_drift_mapping}\" \"{simfit_bias_mapping}\" \"{simfit_thresh_mapping}\" \"{use_parfor}\" \"{use_ddm}\"")
     #os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} {subject_list} {combined_results_dir} {fit_hierarchical} {field} {drift_mapping} {bias_mapping} {thresh_mapping} {use_parfor} {use_ddm}")
 
     print(f"SUBMITTED JOB [{jobname}]")
-    break
-    
     
 
+ 
+    
 
 
 
-# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/simfit_winning_model_nonhierarchical 0 1 1
+
+# ###python3 run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/simfit_winning_model_nonhierarchical 1 1 1
 # joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel
