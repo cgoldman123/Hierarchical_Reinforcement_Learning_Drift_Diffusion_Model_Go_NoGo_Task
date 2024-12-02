@@ -3,11 +3,12 @@
 function extractparams()
 % input file
 
-file = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/fit_simfit_405_pts_small_T/model1/RLDDM_fit_hierarchically_results.mat';
+file = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/jolanda_model_test/alpha,outcome_sensitivity,zeta,beta,pi/hierarchichal_fit_results.mat';
 % loads a file called fit_results
 load(file);
+%fit_results = simfit_results;
 % results location
-results_dir = 'L:\rsmith\lab-members\cgoldman\go_no_go\r_stats\model_results\405_pts_small_T\model1_actual_fits.csv';
+results_dir = 'L:\rsmith\lab-members\cgoldman\go_no_go\r_stats\model_results\405_pts_RL\RL_model_fits.csv';
 results_table = table;
 for i = 1:length(fit_results)
     % For each struct, extract its fields into separate variables

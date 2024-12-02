@@ -29,41 +29,41 @@ subject_list = 'AA022,AA071,AA111,AA164,AA343,AA363,AA374,AA631,AA703,AB050,AB43
 
 
 models = [
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v,a', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v,w', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': 'qval,pav,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': 'qval,pav,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': 'qval,pav,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'qval', 'bias_mapping': 'pav', 'thresh_mapping': 'go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'go', 'bias_mapping': 'pav', 'thresh_mapping': 'qval'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'pav', 'bias_mapping': 'qval', 'thresh_mapping': 'go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'go', 'bias_mapping': 'qval', 'thresh_mapping': 'pav'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'qval', 'bias_mapping': 'go', 'thresh_mapping': 'pav'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'pav', 'bias_mapping': 'go', 'thresh_mapping': 'qval'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav,go', 'bias_mapping': '', 'thresh_mapping': 'qval'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,go', 'bias_mapping': 'qval', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval,go', 'bias_mapping': '', 'thresh_mapping': 'pav'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,go', 'bias_mapping': 'pav', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav,qval', 'bias_mapping': '', 'thresh_mapping': 'go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,qval', 'bias_mapping': 'go', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav,go', 'thresh_mapping': 'qval'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval', 'bias_mapping': 'pav,go', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval,go', 'thresh_mapping': 'pav'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav', 'bias_mapping': 'qval,go', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav,qval','thresh_mapping': 'go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'go', 'bias_mapping': 'pav,qval', 'thresh_mapping': ''},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval', 'thresh_mapping': 'pav,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval', 'bias_mapping': '', 'thresh_mapping': 'pav,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav', 'thresh_mapping': 'qval,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav', 'bias_mapping': '', 'thresh_mapping': 'qval,go'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'go', 'thresh_mapping': 'pav,qval'},
-    {'field': 'T,alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'go', 'bias_mapping': '', 'thresh_mapping': 'pav,qval'}
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v,a', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v,w', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': 'qval,pav,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': 'qval,pav,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': 'qval,pav,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'qval', 'bias_mapping': 'pav', 'thresh_mapping': 'go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'go', 'bias_mapping': 'pav', 'thresh_mapping': 'qval'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'pav', 'bias_mapping': 'qval', 'thresh_mapping': 'go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'go', 'bias_mapping': 'qval', 'thresh_mapping': 'pav'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'qval', 'bias_mapping': 'go', 'thresh_mapping': 'pav'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi', 'drift_mapping': 'pav', 'bias_mapping': 'go', 'thresh_mapping': 'qval'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav,go', 'bias_mapping': '', 'thresh_mapping': 'qval'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,go', 'bias_mapping': 'qval', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval,go', 'bias_mapping': '', 'thresh_mapping': 'pav'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,go', 'bias_mapping': 'pav', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav,qval', 'bias_mapping': '', 'thresh_mapping': 'go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,qval', 'bias_mapping': 'go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav,go', 'thresh_mapping': 'qval'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval', 'bias_mapping': 'pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval,go', 'thresh_mapping': 'pav'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav', 'bias_mapping': 'qval,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav,qval','thresh_mapping': 'go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'go', 'bias_mapping': 'pav,qval', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'qval', 'thresh_mapping': 'pav,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'qval', 'bias_mapping': '', 'thresh_mapping': 'pav,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'pav', 'thresh_mapping': 'qval,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'pav', 'bias_mapping': '', 'thresh_mapping': 'qval,go'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v', 'drift_mapping': '', 'bias_mapping': 'go', 'thresh_mapping': 'pav,qval'},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'go', 'bias_mapping': '', 'thresh_mapping': 'pav,qval'}
 ]
 
 
 for index, model in enumerate(models, start=1):
-    if index < 26:
+    if index == 1:
         continue
     combined_results_dir = os.path.join(results, f"model{index}")
     drift_mapping = model['drift_mapping']
@@ -89,6 +89,7 @@ for index, model in enumerate(models, start=1):
     #os.system(f"sbatch -J {jobname} -o {stdout_name} -e {stderr_name} {ssub_path} {subject_list} {combined_results_dir} {fit_hierarchical} {field} {drift_mapping} {bias_mapping} {thresh_mapping} {use_parfor} {use_ddm}")
 
     print(f"SUBMITTED JOB [{jobname}]")
+
     
 
  

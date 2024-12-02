@@ -12,7 +12,7 @@ use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted 
 % load the data in
 if ispc
     root = 'L:';
-    subjects = ["AA071","AB434"]; % subjects to fit (or simulate)
+    subjects = ["AB434"]; % subjects to fit (or simulate)
     fit_hierarchically = false; % indicate if you would like to fit hierarchically using parametric empirical bayes.
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
     use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
@@ -122,7 +122,7 @@ estimation_prior.zeta = .2;
 estimation_prior.pi_win = 0;
 estimation_prior.pi_loss = 0;
 estimation_prior.pi = 0;
-estimation_prior.T = .001;
+estimation_prior.T = eps;
 estimation_prior.a = 2;
 estimation_prior.w = .5;
 estimation_prior.v = 0;
