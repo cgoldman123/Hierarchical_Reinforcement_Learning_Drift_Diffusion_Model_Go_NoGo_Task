@@ -5,7 +5,7 @@ dbstop if error
 
 plot = false; % indicate if want to plot data
 FIT = true; % indicate if want to fit parameters to task data 
-SIMFIT = false; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
+SIMFIT = true; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
 
 use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted moving average to filter out fast/inaccurate RTs
 
@@ -13,7 +13,7 @@ use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted 
 if ispc
     root = 'L:';
     subjects = ["AB434"]; % subjects to fit (or simulate)
-    fit_hierarchically = false; % indicate if you would like to fit hierarchically using parametric empirical bayes.
+    fit_hierarchically = true; % indicate if you would like to fit hierarchically using parametric empirical bayes.
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
     use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
     % RL PARAMETERS

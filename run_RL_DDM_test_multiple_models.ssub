@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-#SBATCH --partition=c2_gpu
-#SBATCH --ntasks=48
-#SBATCH --mem=6000
+#SBATCH --partition=c3
+#SBATCH --ntasks=1 # this used to be 48
+#SBATCH --mem=80000
 #SBATCH --nodes=1
-#SBATCH --workdir=/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal
+#SBATCH --chdir=/media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal
 #SBATCH --begin=now
 #SBATCH --job-name=RL_DDM_FIT_Hierarchichal
 #SBATCH --time=24:00:00
