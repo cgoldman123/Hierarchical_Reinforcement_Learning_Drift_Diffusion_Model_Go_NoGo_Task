@@ -205,34 +205,40 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
 
             %%%% SIMULATING DATA %%%%
             else
-                % get the probability of a go reaction time from
-                % nondecision time to max and the probability of a nogo
-                % choice (remainder)
-                min_time = T;
-                max_time = min_time+.001;
-                probs = [];
-                while max_time < 1.5
-                    probs = [probs integral(@(y) wfpt(y,-v,a,w),min_time,max_time)];
-                    min_time = min_time+.001;
+                if settings.use_ddm
+                    % get the probability of a go reaction time from
+                    % nondecision time to max and the probability of a nogo
+                    % choice (remainder)
+                    min_time = T;
                     max_time = min_time+.001;
-                end
-                % add in probability of not hitting the boundary
-                probs = [probs 1-sum(probs)];
-                actions = 1:length(probs);
-                sampled_action = randsample(actions,1,true,probs);
-                if sampled_action == length(probs)
-                    % nogo sampled
-                    c = 1;
-                    data.rt(t) = nan;
+                    probs = [];
+                    while max_time < 1.5
+                        probs = [probs integral(@(y) wfpt(y,-v,a,w),min_time,max_time)];
+                        min_time = min_time+.001;
+                        max_time = min_time+.001;
+                    end
+                    % add in probability of not hitting the boundary
+                    probs = [probs 1-sum(probs)];
+                    actions = 1:length(probs);
+                    sampled_action = randsample(actions,1,true,probs);
+                    if sampled_action == length(probs)
+                        % nogo sampled
+                        c = 1;
+                        data.rt(t) = nan;
+                    else
+                        c = 2;
+                        data.rt(t) = T + sampled_action*.001;
+                    end
+                      % for go trials, simulate reaction time
+    %                 if c == 2
+    %                     reaction_time = (0.5*a/v)*tanh(0.5*a*v)+T;
+    %                     data.rt(t) = min(reaction_time,1.5);
+    %                 end
                 else
-                    c = 2;
-                    data.rt(t) = T + sampled_action*.001;
+                    % sample from action probability distribution
+                    u = rand(1,1);
+                    c = find(cumsum(action_probs) >= u, 1);
                 end
-                  % for go trials, simulate reaction time
-%                 if c == 2
-%                     reaction_time = (0.5*a/v)*tanh(0.5*a*v)+T;
-%                     data.rt(t) = min(reaction_time,1.5);
-%                 end
                 % create reward matrix for 4 trial types: GTW, GAL, NGW,
                 % NGAL
                 rewardMatrix = [0, 1; -1, 0; 0, 1; -1, 0]; 

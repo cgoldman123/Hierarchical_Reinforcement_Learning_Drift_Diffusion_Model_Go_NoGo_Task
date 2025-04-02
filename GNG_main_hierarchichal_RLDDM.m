@@ -12,10 +12,10 @@ use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted 
 % load the data in
 if ispc
     root = 'L:';
-    subjects = ["AB434"]; % subjects to fit (or simulate)
+    subjects = ["AB434","AB607"]; % subjects to fit (or simulate)
     fit_hierarchically = true; % indicate if you would like to fit hierarchically using parametric empirical bayes.
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
-    use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
+    use_ddm = false; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
     % RL PARAMETERS
     % alpha - learning rate
     % outcome_sensitivity - reward/loss sensitivity
@@ -28,10 +28,11 @@ if ispc
     % w - starting bias
     % a - decision threshold
 
-    fit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to fit
+    %fit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to fit
+    fit_field = {'alpha','outcome_sensitivity','zeta','beta','pi'};
     % indicate mapping of RL parameters to DDM (only needed if use_ddm is
     % true)
-    fit_ddm_mapping.drift = {'qval','pav','go'}; % mapping to the drift rate
+    fit_ddm_mapping.drift = {}; % mapping to the drift rate e.g., fit_ddm_mapping.drift = {'qval','pav','go'}
     fit_ddm_mapping.thresh = {};  % mapping to the decision threshold
     fit_ddm_mapping.bias = {};  % mapping to the starting bias
     % Please note that if ddm_mapping.drift, ddm_mapping.thresh, or ddm_mapping.bias is set, 
@@ -40,9 +41,10 @@ if ispc
     % be determined by RL parameters and should not be free parameters fit
     % to task data.
     
-    simfit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to simfit
+    simfit_field = {'alpha','outcome_sensitivity','zeta','beta','pi'};
+    %simfit_field = {'T','alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to simfit
     % after having fit then simulated data.
-    simfit_ddm_mapping.drift = {'qval','pav','go'};
+    simfit_ddm_mapping.drift = {};
     simfit_ddm_mapping.thresh = {};
     simfit_ddm_mapping.bias = {};
     
