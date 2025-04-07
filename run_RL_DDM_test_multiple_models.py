@@ -71,19 +71,21 @@ models = [
     {'field': 'alpha,outcome_sensitivity,zeta,beta,pi', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
     {'field': 'alpha,outcome_sensitivity,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},    
     {'field': 'alpha,rs,la,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
-    {'field': 'alpha_win,alpha_loss,rs,la,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''}
-
+    {'field': 'alpha_win,alpha_loss,rs,la,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
+    #{'field': 'alpha,outcome_sensitivity,zeta,beta,pi,omega', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''} # winning model plus forgetting?
 ]
 
 for index, model in enumerate(models, start=1):
-    # if index > 1:
-    #     continue
+    if index > 1:
+        continue
     combined_results_prefix = os.path.join(results, f"fit_model{index}")
     drift_mapping = model['drift_mapping']
     bias_mapping = model['bias_mapping']
     thresh_mapping = model['thresh_mapping']
     field = model['field']
     for simfit_index, simfit_model in enumerate(models, start=1):
+        if simfit_index > 1:
+            continue
         combined_results_dir = combined_results_prefix + f"_simfit_model{simfit_index}"
         simfit_drift_mapping = simfit_model['drift_mapping']
         simfit_bias_mapping = simfit_model['bias_mapping']
@@ -112,7 +114,7 @@ for index, model in enumerate(models, start=1):
 
 
 ## RLDDM
-# python3 /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/model_identifiability_hierarchical 1 0 1
+# python3 /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/model_recoverability_hierarchical_full_range 1 0 1
 # joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel
 
 ## RL
