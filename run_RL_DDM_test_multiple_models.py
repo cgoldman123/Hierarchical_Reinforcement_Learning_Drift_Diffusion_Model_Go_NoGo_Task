@@ -29,7 +29,7 @@ subject_list = 'AA022,AA071,AA111,AA164,AA343,AA363,AA374,AA631,AA703,AB050,AB43
 # subject_list = 'AA022,AA071,AA111' # for testing
 
 # RLDDM Models
-models = [
+RLDDM_models = [
     {'field': 'alpha,outcome_sensitivity,beta,pi,w,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': ''},
     {'field': 'alpha,outcome_sensitivity,beta,pi,v,a', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
     {'field': 'alpha,outcome_sensitivity,beta,pi,v,w', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': 'qval,pav,go'},
@@ -62,8 +62,20 @@ models = [
     {'field': 'alpha,outcome_sensitivity,beta,pi,w', 'drift_mapping': 'go', 'bias_mapping': '', 'thresh_mapping': 'pav,qval'}
 ]
 
+plausible_RLDDM_models = [
+    {'field': 'alpha,outcome_sensitivity,beta,pi,w,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': '', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,v,a', 'drift_mapping': '', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,pav,go', 'bias_mapping': 'qval,pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,go', 'bias_mapping': 'qval', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval,go', 'bias_mapping': 'pav', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav,qval', 'bias_mapping': 'go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'qval', 'bias_mapping': 'pav,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'pav', 'bias_mapping': 'qval,go', 'thresh_mapping': ''},
+    {'field': 'alpha,outcome_sensitivity,beta,pi,a', 'drift_mapping': 'go', 'bias_mapping': 'pav,qval', 'thresh_mapping': ''}
+]
+
 # RL Models
-models = [
+RL_models = [
     {'field': 'beta', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
     {'field': 'alpha,outcome_sensitivity', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},    
     {'field': 'alpha,outcome_sensitivity,zeta', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
@@ -72,20 +84,20 @@ models = [
     {'field': 'alpha,outcome_sensitivity,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},    
     {'field': 'alpha,rs,la,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
     {'field': 'alpha_win,alpha_loss,rs,la,zeta,beta,pi_win,pi_loss', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''},
-    #{'field': 'alpha,outcome_sensitivity,zeta,beta,pi,omega', 'drift_mapping': '', 'bias_mapping': '', 'thresh_mapping': ''} # winning model plus forgetting?
 ]
 
+models = plausible_RLDDM_models
 for index, model in enumerate(models, start=1):
-    if index > 1:
-        continue
+    # if index > 1:
+    #     continue
     combined_results_prefix = os.path.join(results, f"fit_model{index}")
     drift_mapping = model['drift_mapping']
     bias_mapping = model['bias_mapping']
     thresh_mapping = model['thresh_mapping']
     field = model['field']
     for simfit_index, simfit_model in enumerate(models, start=1):
-        if simfit_index > 1:
-            continue
+        # if simfit_index > 1:
+        #     continue
         combined_results_dir = combined_results_prefix + f"_simfit_model{simfit_index}"
         simfit_drift_mapping = simfit_model['drift_mapping']
         simfit_bias_mapping = simfit_model['bias_mapping']
@@ -114,7 +126,11 @@ for index, model in enumerate(models, start=1):
 
 
 ## RLDDM
-# python3 /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/model_recoverability_hierarchical_full_range 1 0 1
+# python3 /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/model_recoverability_hierarchical_full_range_corrected 1 0 1
+# joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel
+
+# Plausible RLDDM Models for Identifiability
+# python3 /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_CMG-hierarchichal/run_RL_DDM_test_multiple_models.py /media/labs/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/plausible_RLDDM_model_identifiability_nonhierarchical 0 0 1
 # joblist | grep GNG | grep -Po 13..... | xargs -n1 scancel
 
 ## RL

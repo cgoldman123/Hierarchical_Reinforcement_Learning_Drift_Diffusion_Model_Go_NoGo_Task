@@ -5,8 +5,12 @@ dbstop if error
 
 plot = false; % indicate if want to plot data
 FIT = true; % indicate if want to fit parameters to task data 
-SIMFIT = true; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data.
-SIMFIT_FULL_RANGE_OF_PARAMS = true; % bypass fitting, and simulate full range of parameters passed in 
+SIMFIT = true; % indicate if want to fit parameters to task data, simulate behavior using those parameters, then fit parameters to simulated data. If true,
+% the parameters used to simulate data (i.e., the fits to behavior) will be
+% in GCM_simed.mat and the fits to simulated data will be in Simfit_RL<DDM>_simmed_results.mat
+SIMFIT_FULL_RANGE_OF_PARAMS = false; % bypass fitting, and simulate full range of parameters passed in. If true, the parameters used to simulate data
+% will be in GCM_simmed_params.mat, and the fits will be in
+% Simfit_RL<DDM>_simmed_results.mat
 
 
 
@@ -16,7 +20,7 @@ use_ewma_rt_filter = false; % indicate if want to use am exponentially weighted 
 if ispc
     root = 'L:';
     subjects = ["AB434","AB607"]; % subjects to fit (or simulate)
-    fit_hierarchically = true; % indicate if you would like to fit hierarchically using parametric empirical bayes.
+    fit_hierarchically = false; % indicate if you would like to fit hierarchically using parametric empirical bayes.
     results_dir = 'L:/rsmith/lab-members/cgoldman/go_no_go/DDM/RL_DDM_Millner/RL_DDM_fits/test'; % results directory
     use_ddm = true; % indicate if you would like to use a drift-diffusion model on top of a reinforcement learning model
     % RL PARAMETERS
@@ -46,6 +50,7 @@ if ispc
     
     %simfit_field = {'alpha','outcome_sensitivity','zeta','beta','pi'};
     simfit_field = {'alpha','outcome_sensitivity','beta','pi','w','a'}; % indicate parameters to simfit
+    %simfit_field = {'alpha'};
     % after having fit then simulated data.
     simfit_ddm_mapping.drift = {'qval','pav','go'};
     simfit_ddm_mapping.thresh = {};
@@ -207,29 +212,39 @@ end
 
 if SIMFIT
     if SIMFIT_FULL_RANGE_OF_PARAMS
+        % Simulate data based on full range of parameters
         num_to_simfit = 400;
+        sim_gcm_params_full_range = cell(num_to_simfit,1);
         for k=1:num_to_simfit
-            fit_gcm{k,1} = DCM;
-            fit_gcm{k,1}.subject = "1";
+            sim_gcm_params_full_range{k,1} = DCM;
+            sim_gcm_params_full_range{k,1}.subject = string(num2str(k));
             % Create vector of trial conditions
-            fit_gcm{k,1}.U.trial_type = repmat((1:4)', 40, 1);
-            fit_gcm{k,1}.U.trial_type = fit_gcm{1}.U.trial_type(randperm(160));
-            fit_gcm{k,1}.U.N = 160;
-            fit_gcm{k,1}.U.subject = "1";
-            fit_gcm{k,1}.U.keep_trial = ones(1,160);
-            fit_gcm{k,1}.fitted_MDP = DCM.MDP;
-            fit_gcm{k,1}.fitted_MDP.alpha = rand; % randomly samples between 0 and 1
-            fit_gcm{k,1}.fitted_MDP.beta = -4 + (8 * rand); % randomly samples between 4 and -4
-            fit_gcm{k,1}.fitted_MDP.pi = -3 + (6 * rand); % randomly samples between 3 and -3
-            fit_gcm{k,1}.fitted_MDP.a = 1 + (4 * rand); % randomly samples  between 1 and 5
-            fit_gcm{k,1}.fitted_MDP.w = rand; % randomly samples between 0 and 1
-            fit_gcm{k,1}.fitted_MDP.outcome_sensitivity = 4 * rand; % randomly samples between 0 and 4
+            sim_gcm_params_full_range{k,1}.U.trial_type = repmat((1:4)', 40, 1);
+            sim_gcm_params_full_range{k,1}.U.trial_type = sim_gcm_params_full_range{1}.U.trial_type(randperm(160));
+            sim_gcm_params_full_range{k,1}.U.N = 160;
+            sim_gcm_params_full_range{k,1}.U.keep_trial = ones(1,160);
+            sim_gcm_params_full_range{k,1}.fitted_MDP = DCM.MDP;
+            sim_gcm_params_full_range{k,1}.fitted_MDP.alpha = rand; % randomly samples between 0 and 1
+            sim_gcm_params_full_range{k,1}.fitted_MDP.beta = -4 + (8 * rand); % randomly samples between 4 and -4
+            sim_gcm_params_full_range{k,1}.fitted_MDP.pi = -3 + (6 * rand); % randomly samples between 3 and -3
+            sim_gcm_params_full_range{k,1}.fitted_MDP.a = 1 + (4 * rand); % randomly samples  between 1 and 5
+            sim_gcm_params_full_range{k,1}.fitted_MDP.w = rand; % randomly samples between 0 and 1
+            sim_gcm_params_full_range{k,1}.fitted_MDP.outcome_sensitivity = 4 * rand; % randomly samples between 0 and 4
+            disp(sim_gcm_params_full_range{k,1}.fitted_MDP);
         end
-    end
+        save([results_dir '/sim_gcm_params_full_range'], 'sim_gcm_params_full_range');
+        fprintf('\nSimming data from %d subjects\n\n',length(sim_gcm_params_full_range));
+        simmed_GCM = simulate_gonogo(sim_gcm_params_full_range);
+    else
+        % Simulate data based on fits to actual behavior
+        fprintf('\nSimming data from %d subjects\n\n',length(fit_gcm));
+        simmed_GCM = simulate_gonogo(fit_gcm);
+        % Save the GCM that contains behavior that was fit to get the
+        % parameters used to simulate data
+        save([results_dir '/GCM_simmed'], 'GCM');
 
-    fprintf('\nSimming data from %d subjects\n\n',length(fit_gcm));
-    simmed_GCM = simulate_gonogo(fit_gcm);
-    save([results_dir '/GCM_simmed'], 'simmed_GCM');
+    end
+    
     if use_ewma_rt_filter
         simmed_GCM = analyze_RTs(simmed_GCM);
     end

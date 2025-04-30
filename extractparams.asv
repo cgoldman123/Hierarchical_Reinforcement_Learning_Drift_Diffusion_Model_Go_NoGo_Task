@@ -13,10 +13,7 @@ load(fit_file);
 if extract_simulated_parameters
     % These are the parameters used to simulate data that was fit in
     % simfit_results
-    fit_results = simfit_results; 
-    % If using the full reasonable distribution of params to simulate, this
-    % file should be called sim_gcm_params_full_range or something of that
-    % sort
+    fit_results = simfit_results;
     simmed_file = 'L:\rsmith\lab-members\cgoldman\go_no_go\DDM\RL_DDM_Millner\RL_DDM_fits\test\RLDDM_fit_nonhierarchically_results.mat';
 end
 
@@ -52,9 +49,9 @@ end
 % Extract the parameters used to simulate the behavior that was fit
 if extract_simulated_parameters
     % load a file called 
-    load(simmed_file); % This will either be a .mat object called sim_gcm_params_full_range or fit_results depending on whether the full range of parameter values or parameter estimates from actual data were used to simulate behavior
+    load(simmed_file); % This will either be a .mat object called sim_gcm_params_full_range or fit_results depending on whether the full range of parameter values or parameter
     % If using the full reasonable distribution of parameters, look inside sim_gcm_params_full_range
-    if exist('sim_gcm_params_full_range', 'var')
+    if exists(sim_gcm_params_full_range)
         for i = 1:length(sim_gcm_params_full_range)
             % Extract the 'posterior' struct and convert it to a table
             sim_fields = fieldnames(sim_gcm_params_full_range{i}.fitted_MDP);
@@ -66,18 +63,7 @@ if extract_simulated_parameters
             end
         end
     else
-        % If using parameter estimates from actual data to simulate
-        % plausible behavior, look inside fit_results
-         for i = 1:length(fit_results)
-            % Extract the 'posterior' struct and convert it to a table
-            sim_fields = fieldnames(fit_results(i).posterior);
-            for k = 1:length(sim_fields)
-                sim_value = fit_results(i).posterior.(sim_fields{k});
-                % Create new column name for the posterior field
-                column_name = sprintf('simmed_%s', sim_fields{k});
-                results_table.(column_name)(i) = sim_value;
-            end
-        end
+        % If using parameter estimates from actual data to simulate plausible behavior,  
     end
 end
 

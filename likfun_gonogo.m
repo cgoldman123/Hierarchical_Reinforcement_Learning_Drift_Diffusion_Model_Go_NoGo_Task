@@ -220,6 +220,7 @@ function [lik, latents] = likfun_gonogo(x,data,settings)
                     % add in probability of not hitting the boundary
                     probs = [probs 1-sum(probs)];
                     actions = 1:length(probs);
+                    probs(probs < 0) = 0; % Ensure the value of each prob is non-negative
                     sampled_action = randsample(actions,1,true,probs);
                     if sampled_action == length(probs)
                         % nogo sampled
