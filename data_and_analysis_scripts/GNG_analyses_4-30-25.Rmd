@@ -1,0 +1,1896 @@
+---
+title: "GNG_analyses"
+output: html_document
+date: "2023-10-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("L:\\rsmith\\lab-members\\cgoldman\\go_no_go\\r_stats")
+library(ggplot2)
+library(tidyverse)
+library(car)
+library(psych)
+library(emmeans)
+library(lme4)
+library(BayesFactor)
+library(dplyr)
+library(emmeans) 
+library(ggeffects)
+library(optLog)
+library(ppcor)
+library(outliers)
+library(corrplot)
+library(effectsize)
+set.seed(23)
+
+
+```
+
+
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r RUN: Read in data and remove outliers}
+# Read in experiment data
+gngb_data = read.csv("./GNG_experiment_data_5-6-25.csv") # Note that this dataframe was produced in C:/Users/CGoldman/OneDrive - Laureate Institute for Brain Research/Desktop/R_analyses/GNG_analyses.Rmd
+
+# Read in data for recoverability analysis using the full distributions of parameter values to simulate data
+recoverability_data = read.csv("./param_recov_full_param_distributions.csv")
+
+# Source function to get pretty corrplots
+source("./corrplotplus.R")
+
+
+gngb_data_outliers_included = gngb_data
+
+check_and_remove_outliers <- function(data, column, threshold = 0.05, type = 10) {
+  repeat {
+    test_result <- grubbs.test(data[[column]], type = type)
+    p_value <- test_result$p.value
+    if (p_value < threshold) {
+      # Extract the outlier value from the test result string
+      outlier_value <- as.numeric(str_extract(test_result$alternative, "-?\\d+\\.?\\d*"))
+      # Replace the outlier with NA using which function
+      data[[column]][which(data[[column]] == outlier_value)] <- NA
+      print(paste("Outlier of", outlier_value, "removed for", column, "column"))
+    } else {
+      break
+    }
+  }
+  return(data)
+}
+
+columns_to_check <- c("RLDDM_posterior_learning_rate", "RLDDM_posterior_outcome_sensitivity", "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias", "RLDDM_posterior_starting_bias", "RLDDM_posterior_decision_threshold","go_lose_accuracy","go_win_accuracy","nogo_lose_accuracy","nogo_win_accuracy","mean_rt_go_win","mean_rt_go_lose","mean_rt_nogo_win","mean_rt_nogo_lose")
+
+for (column in columns_to_check) {
+  gngb_data <- check_and_remove_outliers(gngb_data, column)
+}
+
+gngb_data$group = factor(gngb_data$group, levels = c("HasComorbidDepAnx", "HasJustDepression", "Healthy"))
+contrasts(gngb_data$group) = contr.Sum(levels(gngb_data$group))
+gngb_data$sex = factor(gngb_data$sex)
+contrasts(gngb_data$sex) = contr.Sum(levels(gngb_data$sex))
+
+gngb_data <- gngb_data %>% 
+  mutate(dep_or_anx_dep = ifelse(group %in% c("HasJustDepression", "HasComorbidDepAnx"), TRUE, FALSE)) %>%
+  mutate(dep_or_anx_dep = as.factor(dep_or_anx_dep))
+contrasts(gngb_data$dep_or_anx_dep) = contr.Sum(levels(gngb_data$dep_or_anx_dep))
+
+
+gngb_data_outliers_included$group = factor(gngb_data_outliers_included$group, levels = c("HasComorbidDepAnx", "HasJustDepression", "Healthy"))
+contrasts(gngb_data_outliers_included$group) = contr.Sum(levels(gngb_data_outliers_included$group))
+gngb_data_outliers_included$sex = factor(gngb_data_outliers_included$sex)
+contrasts(gngb_data_outliers_included$sex) = contr.Sum(levels(gngb_data_outliers_included$sex))
+
+gngb_data_outliers_included <- gngb_data_outliers_included %>% 
+  mutate(dep_or_anx_dep = ifelse(group %in% c("HasJustDepression", "HasComorbidDepAnx"), TRUE, FALSE)) %>%
+  mutate(dep_or_anx_dep = as.factor(dep_or_anx_dep))
+contrasts(gngb_data_outliers_included$dep_or_anx_dep) = contr.Sum(levels(gngb_data_outliers_included$dep_or_anx_dep))
+
+# Create dataframe with just clinical groups
+clinical_groups_data = gngb_data %>% filter(dep_or_anx_dep==TRUE)
+# Re-code group variable
+clinical_groups_data$group <- factor(clinical_groups_data$group, 
+                                     levels = c("HasComorbidDepAnx", "HasJustDepression"))
+contrasts(clinical_groups_data$group) <- contr.sum(2)
+
+
+```
+```{r Function to put LM/LME results in table (including post hoc contrasts) }
+
+summarize_and_refine_model_lme <- function(models) {
+  summarize_model <- function(model) {
+    tidy_summary <- broom.mixed::tidy(model, conf.int = TRUE, conf.level = 0.95)
+    model_name <- deparse(formula(model), width.cutoff = 500)
+    
+    if (str_detect(model_name, "alpha_cluster_together ~")) {
+      anova = Anova(model)
+      anova$Df.res = NA
+      anova$`F` = NA
+      anova$`Pr(>F)` = NA
+      tidy_summary <- tidy_summary[1:(nrow(tidy_summary) - 1), ]
+      tidy_summary$df = NA
+    } else {
+      anova = Anova(model, test = "F")
+      anova$`Pr(>Chisq)` = NA
+      anova$Chisq = NA
+      tidy_summary <- tidy_summary[1:(nrow(tidy_summary) - 2), ]
+    }
+    
+    empty_df <- data.frame(matrix(NA, ncol = ncol(anova), nrow = nrow(tidy_summary)))
+    colnames(empty_df) <- colnames(anova)
+    
+    for (i in seq_len(nrow(anova))) {
+      term <- rownames(anova)[i]
+      if (str_detect(term, ":")) {
+        parts <- str_split(term, ":", simplify = TRUE)
+        matched_rows <- which(str_detect(tidy_summary$term, parts[1]) & str_detect(tidy_summary$term, parts[2]))
+      } else {
+        matched_rows <- which(str_detect(tidy_summary$term, term))
+      }
+      
+      empty_df[matched_rows, ] <- anova[i, ]
+      empty_df$term_simple[matched_rows] <- term
+    }
+    
+    tidy_summary <- cbind(tidy_summary, empty_df)
+    tidy_summary$model_name <- rep(model_name, nrow(tidy_summary))
+    tidy_summary <- tidy_summary %>% 
+      mutate(partial_eta_squared = if_else(is.na(`F`) | is.na(Df) | is.na(`Df.res`), NA_real_, 
+                                           F_to_eta2(f = `F`, df = Df, df_error = `Df.res`)$Eta2_partial))
+    
+    return(tidy_summary)
+  }
+  
+  refine_model <- function(model_summaries) {
+    prepared_summaries <- model_summaries %>%
+      mutate(
+        Estimate = round(estimate, 3),
+        `CI` = sprintf("[%.3f, %.3f]", `conf.low`, `conf.high`),
+        `b_CI` = ifelse(is.na(Estimate), NA, sprintf("%.3f %s", Estimate, `CI`)),
+        `Pr(>F)` = ifelse(`Pr(>F)` < 0.001, "<.001", sub("^0+", "", sprintf("%.3f", `Pr(>F)`))),
+        Statistical_Test = ifelse(is.na(`F`), NA, sprintf("F(%.0f,%.1f)=%.2f", `Df`, `Df.res`, `F`)),
+        partial_eta_squared = ifelse(partial_eta_squared < 0.01, "<.01", sub("^0+", "", sprintf("%.2f", partial_eta_squared))),
+      ) %>%
+      dplyr::select(
+        model_name, term, term_simple, Statistical_Test, `Pr(>F)`, partial_eta_squared, b_CI
+      ) %>%
+      dplyr::filter(term != "(Intercept)")
+    
+    # Collapse rows by term_simple
+    collapsed_summaries <- prepared_summaries %>%
+      group_by(model_name, term_simple, Statistical_Test, `Pr(>F)`, partial_eta_squared) %>%
+      dplyr::summarize(
+      `b_CI` = if(n() == 1) first(`b_CI`) else paste0(term, ": ", `b_CI`, collapse = ", "),
+      .groups = 'drop'
+      ) %>%
+      ungroup()
+    
+    return(collapsed_summaries)
+  }
+  
+  get_emmeans_strings <- function(model) {
+    predictors <- attr(terms(model), "term.labels")
+    emmeans_strings <- sapply(predictors, function(predictor) {
+      emmeans_results <- emmeans(model, as.formula(paste("~", predictor))) %>%
+        as.data.frame()
+      name_cols <- names(emmeans_results)[1:(grep("emmean", names(emmeans_results)) - 1)]
+      combined_names <- if (length(name_cols) == 1 && is.numeric(emmeans_results[[name_cols]])) {
+        paste(name_cols)
+      } else {
+        apply(emmeans_results[, name_cols, drop = FALSE], 1, paste, collapse = " x ")
+      }
+      paste(combined_names, sprintf("%.2f", emmeans_results$emmean), sep = "=", collapse = ",")
+
+    })
+    as.data.frame(emmeans_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+  }
+  
+
+get_emtrends_strings <- function(model) {
+  predictors <- attr(terms(model), "term.labels")
+  emtrends_strings <- sapply(predictors, function(term) {
+    components <- strsplit(term, ":")[[1]]
+    if (length(components) == 2) { 
+      model_data <- model@frame
+      first_term_in_interaction <- model_data[, components[1], drop = FALSE]
+      second_term_in_interaction <- model_data[, components[2], drop = FALSE]
+      if (is.numeric(first_term_in_interaction[,1]) && !is.numeric(second_term_in_interaction[,1])) {
+        emtrends_results <- emtrends(model, as.formula(paste0("pairwise ~ ", components[2])), var = components[1])$emtrends %>% as.data.frame()
+        trend_string <- paste(paste0(components[1], "_at_", emtrends_results[[1]]), sprintf("%.3f", emtrends_results$trend), sep = " = ", collapse = ", ")
+        return(trend_string)
+      } else if (!is.numeric(first_term_in_interaction[,1]) && is.numeric(second_term_in_interaction[,1])) {
+        emtrends_results <- emtrends(model, as.formula(paste0("pairwise ~ ", components[1])), var = components[2])$emtrends %>% as.data.frame()
+        trend_string <- paste(paste0(components[2], " x ", emtrends_results[[1]]), sprintf("%.3f", emtrends_results[,2]), sep = " = ", collapse = ", ")
+        return(trend_string)
+      } else {
+        return(NA) 
+      }
+    } else {
+      return(NA) 
+    }
+  })
+  as.data.frame(emtrends_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+}
+
+
+  
+  
+  
+  
+  
+  
+  get_posthoc_contrasts_strings <- function(model) {
+    predictors <- attr(terms(model), "term.labels")
+    contrasts_strings <- sapply(predictors, function(predictor) {
+      contrast_results <- emmeans(model, as.formula(paste("pairwise ~", predictor)), adjust = "none")$contrasts %>%
+        as.data.frame()
+      if (!"t.ratio" %in% names(contrast_results)) {
+        "n/a"
+      } else {
+        contrast_results %>%
+          mutate(
+                estimate = paste0("=",sprintf("%.3f", estimate)),
+                p.value = ifelse(p.value < 0.001, "<.001", paste0("=",sub("^0+", "", sprintf("%.3f", p.value)))),
+                 contrast_stats =  paste0("c",estimate,", ",
+                                          "t(", round(df,1), ")=", sprintf("%.2f", t.ratio),", ",
+                                         "p", p.value),
+                 contrast_string = paste(contrast,contrast_stats, sep=": ")) %>%
+          
+          pull(contrast_string) %>%
+          paste(collapse = ",")
+      }
+    }, simplify = TRUE, USE.NAMES = TRUE)
+    data.frame(contrasts_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+  }
+  
+  final_results = NULL
+  for (model in models) {
+      # Summarize the model
+      model_summaries <- summarize_model(model)
+      
+      # Refine the model summary
+      refined_summaries <- refine_model(model_summaries)
+      
+      # Get emmeans and contrasts
+      emmeans_results <- get_emmeans_strings(model)
+      contrasts_results <- get_posthoc_contrasts_strings(model)
+      emtrends_results = get_emtrends_strings(model)
+      
+      # Merge the refined summary with emmeans and contrasts
+      summaries_combined <- refined_summaries %>%
+        left_join(emmeans_results, by = c("term_simple" = "term")) %>%
+        left_join(contrasts_results, by = c("term_simple" = "term")) %>%
+        left_join(emtrends_results, by = c("term_simple" = "term")) 
+
+      summaries_combined <- summaries_combined %>%
+        mutate(emmeans_strings = ifelse(!is.na(emtrends_strings), NA, emmeans_strings),
+          contrasts_strings = ifelse(!is.na(emtrends_strings), NA, contrasts_strings))
+      
+      # Combine the results with the previous models
+      final_results <- rbind(final_results, summaries_combined)
+  }
+  return(final_results)
+}
+
+
+# Example usage:
+# model = lmer(accuracy ~ condition*group + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+# models_list <- list(model)
+# model_summaries <- summarize_and_refine_model_lme(models_list)
+
+summarize_and_refine_model_lm <- function(models) {
+  summarize_model <- function(model) {
+    tidy_summary <- broom.mixed::tidy(model, conf.int = TRUE, conf.level = 0.95)
+    model_name <- deparse(formula(model), width.cutoff = 500)
+    
+    if (str_detect(model_name, "alpha_cluster_together ~")) {
+      anova = Anova(model)
+      anova$Df.res = NA
+      anova$`F` = NA
+      anova$`Pr(>F)` = NA
+      tidy_summary <- tidy_summary[1:(nrow(tidy_summary) - 1), ]
+      tidy_summary$df = NA
+    } else {
+      anova = Anova(model, test="F") 
+      anova$`Pr(>Chisq)` = NA
+      anova$Chisq = NA
+     # tidy_summary <- tidy_summary[1:(nrow(tidy_summary) - 2), ]
+    }
+    anova$partial_eta_squared =  anova$`Sum Sq` / (anova$`Sum Sq` + anova["Residuals","Sum Sq"])
+    anova$Df.res = anova["Residuals", "Df"]
+    
+    anova = anova[1:(nrow(anova)-1),] # get rid of residuals column
+  
+ # this sometimes causes problems
+    empty_df <- data.frame(matrix(NA, ncol = ncol(anova), nrow = nrow(tidy_summary)))
+    
+    
+    colnames(empty_df) <- colnames(anova)
+    empty_df$term_simple = NA
+    for (i in seq_len(nrow(anova))) {
+      term <- rownames(anova)[i]
+      if (str_detect(term, ":")) {
+        parts <- str_split(term, ":", simplify = TRUE)
+        matched_rows <- which(str_detect(tidy_summary$term, parts[1]) & str_detect(tidy_summary$term, parts[2]))
+      } else {
+        matched_rows <- which(str_detect(tidy_summary$term, term))
+      }
+      
+      empty_df[matched_rows, ] <- anova[i, ]
+      empty_df$term_simple[matched_rows] <- term
+    }
+    
+    tidy_summary <- cbind(tidy_summary, empty_df)
+    tidy_summary$model_name <- rep(model_name, nrow(tidy_summary))
+    
+    
+    return(tidy_summary)
+  }
+  
+  refine_model <- function(model_summaries) {
+  prepared_summaries <- model_summaries %>%
+    mutate(
+      Estimate = round(estimate, 3),
+      `Pr(>F)` = ifelse(`Pr(>F)` < 0.001, "<.001", as.character(sub("^0+", "", sprintf("%.3f", `Pr(>F)`)))),
+      Statistical_Test = ifelse(is.na(`F value`), NA, sprintf("F(%d,%d)=%.2f", `Df`, `Df.res`,`F value`)),
+      `CI` = sprintf("[%.3f, %.3f]", `conf.low`, `conf.high`),
+      `b_CI` = ifelse(is.na(Estimate), NA, sprintf("%.3f %s", Estimate, `CI`)),
+      `Pr(>Chisq)` = ifelse(`Pr(>Chisq)` < 0.001, "<.001", sprintf("%.3f", `Pr(>Chisq)`)),
+      `Chisq_Test` = ifelse(is.na(`Chisq`), NA, sprintf("Chisq(%.0f)=%.2f", `Df`, `Chisq`)),
+      partial_eta_squared = ifelse(partial_eta_squared < 0.01, "<.01", sub("^0+", "", sprintf("%.2f", partial_eta_squared))),
+    ) %>%
+    dplyr::select(
+      model_name, term, term_simple,Statistical_Test, `Pr(>F)`, partial_eta_squared, `b_CI`
+    ) %>%
+    dplyr::filter(term != "(Intercept)")
+  
+    # Collapse rows by term_simple
+    collapsed_summaries <- prepared_summaries %>%
+      group_by(model_name, term_simple, Statistical_Test, `Pr(>F)`, partial_eta_squared) %>%
+      dplyr::summarize(
+      `b_CI` = if(n() == 1) first(`b_CI`) else paste0(term, ": ", `b_CI`, collapse = ", "),
+      .groups = 'drop'
+    ) %>%
+    ungroup()
+
+  
+
+    return(collapsed_summaries)
+}
+  
+  get_emmeans_strings <- function(model) {
+    predictors <- attr(terms(model), "term.labels")
+    emmeans_strings <- sapply(predictors, function(predictor) {
+      emmeans_results <- emmeans(model, as.formula(paste("~", predictor))) %>%
+        as.data.frame()
+      name_cols <- names(emmeans_results)[1:(grep("emmean", names(emmeans_results)) - 1)]
+      combined_names <- if (length(name_cols) == 1 && is.numeric(emmeans_results[[name_cols]])) {
+        paste(name_cols)
+      } else {
+        apply(emmeans_results[, name_cols, drop = FALSE], 1, paste, collapse = " x ")
+      }
+      paste(combined_names, sprintf("%.2f", emmeans_results$emmean), sep = "=", collapse = ",")
+      #paste(combined_names, "hi", sep = ":", collapse = ",")
+
+    })
+    as.data.frame(emmeans_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+  }
+  
+  get_posthoc_contrasts_strings <- function(model) {
+    predictors <- attr(terms(model), "term.labels")
+    contrasts_strings <- sapply(predictors, function(predictor) {
+      contrast_results <- emmeans(model, as.formula(paste("pairwise ~", predictor)), adjust = "none")$contrasts %>%
+        as.data.frame()
+      if (!"t.ratio" %in% names(contrast_results)) {
+        "n/a"
+      } else {
+        contrast_results %>%
+          mutate(
+                estimate = paste0("=",sprintf("%.3f", estimate)),
+                p.value = ifelse(p.value < 0.001, "<.001", paste0("=",sub("^0+", "", sprintf("%.3f", p.value)))),
+                 contrast_stats =  paste0("c",estimate,", ",
+                                          "t(", round(df,1), ")=", sprintf("%.2f", t.ratio),", ",
+                                         "p", p.value),
+                 contrast_string = paste(contrast,contrast_stats, sep=": ")) %>%
+          
+          pull(contrast_string) %>%
+          paste(collapse = ",")
+      }
+    }, simplify = TRUE, USE.NAMES = TRUE)
+    data.frame(contrasts_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+  }
+  
+  get_emtrends_strings <- function(model) {
+  predictors <- attr(terms(model), "term.labels")
+  emtrends_strings <- sapply(predictors, function(term) {
+    components <- strsplit(term, ":")[[1]]
+    if (length(components) == 2) { 
+      model_data <- model.frame(model)
+      first_term_in_interaction <- model_data[, components[1], drop = FALSE]
+      second_term_in_interaction <- model_data[, components[2], drop = FALSE]
+      if (is.numeric(first_term_in_interaction[,1]) && !is.numeric(second_term_in_interaction[,1])) {
+        emtrends_results <- emtrends(model, as.formula(paste0("pairwise ~ ", components[2])), var = components[1])$emtrends %>% as.data.frame()
+        trend_string <- paste(paste0(components[1], "_at_", emtrends_results[[1]]), sprintf("%.3f", emtrends_results$trend), sep = " = ", collapse = ", ")
+        return(trend_string)
+      } else if (!is.numeric(first_term_in_interaction[,1]) && is.numeric(second_term_in_interaction[,1])) {
+        emtrends_results <- emtrends(model, as.formula(paste0("pairwise ~ ", components[1])), var = components[2])$emtrends %>% as.data.frame()
+        trend_string <- paste(paste0(components[2], " x ", emtrends_results[[1]]), sprintf("%.3f", emtrends_results[,2]), sep = " = ", collapse = ", ")
+        return(trend_string)
+      } else {
+        return(NA) 
+      }
+    } else {
+      return(NA) 
+    }
+  })
+  as.data.frame(emtrends_strings, stringsAsFactors = FALSE) %>% rownames_to_column(var = "term")
+}
+  
+  final_results = NULL
+  for (model in models) {
+      # Summarize the model
+      model_summaries <- summarize_model(model)
+      
+      # Refine the model summary
+      refined_summaries <- refine_model(model_summaries)
+      
+      # Get emmeans and contrasts
+      emmeans_results <- get_emmeans_strings(model)
+      contrasts_results <- get_posthoc_contrasts_strings(model)
+      emtrends_results = get_emtrends_strings(model)
+      
+      # Merge the refined summary with emmeans and contrasts
+      summaries_combined <- refined_summaries %>%
+        left_join(emmeans_results, by = c("term_simple" = "term")) %>%
+        left_join(contrasts_results, by = c("term_simple" = "term")) %>%
+        left_join(emtrends_results, by = c("term_simple" = "term")) 
+
+      summaries_combined <- summaries_combined %>%
+        mutate(emmeans_strings = ifelse(!is.na(emtrends_strings), NA, emmeans_strings),
+          contrasts_strings = ifelse(!is.na(emtrends_strings), NA, contrasts_strings))
+      
+      # Combine the results with the previous models
+      final_results <- rbind(final_results, summaries_combined)
+  }
+  return(final_results)
+}
+
+
+# models_list = c(model)
+# model_summaries <- do.call(rbind, lapply(models_list, summarize_model))
+# tempo = (refine_model(model_summaries))
+```
+
+```{r Descriptive Statistics for Demographic and Clinical Measures}
+calculate_stats <- function(data, measures) {
+  # Create an empty dataframe to store the results
+  result <- data.frame(
+    measure = character(),
+    Healthy_Mean_SD = character(),
+    Depressed_Mean_SD = character(),
+    AnxiousDepressed_Mean_SD = character(),
+    Statistical_Test = character(),
+    p_value = numeric(),
+    Effect_Size = numeric(),
+    contrast = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Iterate over each measure
+  for (measure in measures) {
+    # Subset data for each group
+    healthy_data <- data %>% filter(group == "Healthy") %>% pull(!!sym(measure))
+    depressed_data <- data %>% filter(group == "HasJustDepression") %>% pull(!!sym(measure))
+    anxious_depressed_data <- data %>% filter(group == "HasComorbidDepAnx") %>% pull(!!sym(measure))
+    
+    # Count non-NA values for each group
+    healthy_n <- sum(!is.na(healthy_data))
+    depressed_n <- sum(!is.na(depressed_data))
+    anxious_depressed_n <- sum(!is.na(anxious_depressed_data))
+    
+    # Calculate mean and standard deviation for each group
+    healthy_n_mean_sd <- sprintf("%.2f (%.2f)", mean(healthy_data, na.rm = TRUE), sd(healthy_data, na.rm = TRUE))
+    depressed_n_mean_sd <- sprintf("%.2f (%.2f)", mean(depressed_data, na.rm = TRUE), sd(depressed_data, na.rm = TRUE))
+    anxious_depressed_n_mean_sd <- sprintf("%.2f (%.2f)", mean(anxious_depressed_data, na.rm = TRUE), sd(anxious_depressed_data, na.rm = TRUE))
+    
+    # Perform statistical test (ANOVA in this case)
+    anova_result <- aov(as.formula(paste(measure, "~ group")), data = data)
+    anova_summary <- summary(anova_result)
+    
+    # Extract p-value
+    p_value <- anova_summary[[1]]$`Pr(>F)`[1]
+    
+    # Calculate effect size (eta squared) of the anova
+    sum_sq_model <- anova_summary[[1]]$`Sum Sq`[1]
+    sum_sq_total <- sum(anova_summary[[1]]$`Sum Sq`)
+    eta_squared <- sum_sq_model / sum_sq_total
+    
+    # Calculate the post-hoc contrast
+    contrast <- ""
+   # if (p_value > .05) {
+    # always output pairwise comparison
+    if (FALSE) {
+      contrast <- "n.s."
+    } else {
+      posthoc <- pairwise.t.test(data[[measure]], data$group, p.adjust.method = "none")
+      contrasts <- list(
+        `HC-Dep` = posthoc$p.value["Healthy", "HasJustDepression"],
+        `HC-AnxDep` = posthoc$p.value["Healthy", "HasComorbidDepAnx"],
+        `Dep-AnxDep` = posthoc$p.value["HasJustDepression", "HasComorbidDepAnx"]
+      )
+      t_values <- list(
+        `HC-Dep` = t.test(healthy_data, depressed_data)$statistic,
+        `HC-AnxDep` = t.test(healthy_data, anxious_depressed_data)$statistic,
+        `Dep-AnxDep` = t.test(depressed_data, anxious_depressed_data)$statistic
+      )
+      means <- list(
+        `HC-Dep` = mean(healthy_data, na.rm = TRUE) - mean(depressed_data, na.rm = TRUE),
+        `HC-AnxDep` = mean(healthy_data, na.rm = TRUE) - mean(anxious_depressed_data, na.rm = TRUE),
+        `Dep-AnxDep` = mean(depressed_data, na.rm = TRUE) - mean(anxious_depressed_data, na.rm = TRUE)
+      )
+      
+      for (c in names(contrasts)) {
+         # if (p_value > .05) {
+        if (TRUE) {
+         # always output pairwise comparison{
+          p_value <- ifelse(contrasts[[c]] < 0.001, "<.001", sprintf("=%.3f", contrasts[[c]]))
+          contrast <- paste0(contrast, sprintf("%s: c=%.2f, t=%.2f, p%s ", c, means[[c]], t_values[[c]], p_value))
+        }
+      }
+    }
+    
+    # Append to result dataframe
+    result <- rbind(result, data.frame(
+      measure = measure,
+      Healthy_Mean_SD = healthy_n_mean_sd,
+      Depressed_Mean_SD = depressed_n_mean_sd,
+      AnxiousDepressed_Mean_SD = anxious_depressed_n_mean_sd,
+      Statistical_Test = sprintf("F(2, %d) = %.2f", anova_result$df.residual, anova_summary[[1]]$`F value`[1]),
+      p_value = ifelse(p_value < 0.001, "<.001", sub("^0+", "", sprintf("%.3f", p_value))),
+      Effect_Size = ifelse(eta_squared < 0.01, "<.01", sub("^0+", "", sprintf("%.2f", eta_squared))),
+      contrast = contrast,
+      healthy_n = healthy_n,
+      depressed_n = depressed_n,
+      anxious_depressed_n = anxious_depressed_n,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  return(result)
+}
+
+# Assuming gngb_data is your dataframe and you have a list of measures
+measures_self_report <- c("age", "list_sort_fully_corrected_t_score", "phq_score", "oasis_score","asi3_social_score","asi3_physical_score", "asi3_cognitive_score", "rrs_brooding","rrs_reflection","rrs_depression","SHAPS_total","PSWQ_total")
+output <- calculate_stats(gngb_data, measures_self_report)
+print(output)
+# write.csv(output,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/summary_stats.csv")
+
+
+# relevel
+sex_df = gngb_data
+# relevel so I get the appropriate contrasts
+sex_df$group <- factor(sex_df$group, 
+                          levels = c("Healthy", "HasJustDepression", "HasComorbidDepAnx"))
+sex_df$sex = as.factor(sex_df$sex)
+model = glm(sex ~ group, data=sex_df, family = 'binomial')
+# Create the contingency table
+contingency_table <- table(sex_df$group, sex_df$sex)
+
+# Perform the Chi-squared test
+chisq_test <- chisq.test(contingency_table)
+chisq_test
+cohens_w <- sqrt(chisq_test$statistic / sum(contingency_table))
+cohens_w
+summary(model)
+
+# Pairwise comparison
+emmeans(model, pairwise ~ group, type = "response")
+
+
+
+```
+```{r Descriptive Statistics for Medication Status}
+
+# print unique medications across all subjects
+cat(unique(unlist(gngb_data[, paste0("medication_", 1:9)])), sep = ", ")
+
+
+keyword_check <- function(row, keywords) {
+  return(any(sapply(keywords, function(k) any(grepl(k, row, ignore.case = TRUE)))))
+}
+
+
+# Todo - confirm misc. anxiolytics? antipsychotics? sleep drugs like modafinil (adhd?), "ambien" Lunesta hydroxyzine?
+# include stimulants in medicated?
+miscellanous = c("mirtazapine", "trazodone", "deplin", "seroquel", "quetiapine","estarylla")
+
+
+SSRIs = c("zoloft", "lexapro", "escitalopram","prozac", "fluoxetine", "citalopram", "celexa","paxil", "paroxetine", "sertraline","Paraoxitene")
+gngb_data$onSSRI <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                          keywords = SSRIs)
+
+SNRIs = c("effexor", "venlafaxine", "pristiq", "cymbalta", "duloxetine", "desvenlafaxine")
+gngb_data$onSNRI <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                          keywords = SNRIs)
+
+NDRIs = c("Bupropion","Wellbutrin","zyban")
+gngb_data$onNDRI <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                          keywords = NDRIs)
+
+# The anxiolytics category will consist of benzodiazepines and barbiturates and Propanolol and Busiprone and trintellix and Hydroxyzine
+Anxiolytics = c("lorazepam", "diazepam", "clonazepam", "alprazolam", "valium", "xanax", "temazepam", "phenobarbital", "thiopental","Propanolol","Buspirone","buspar","Trintellix","Hydroxyzine","vistaril")
+gngb_data$onAnxiolytics <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                          keywords = Anxiolytics)
+
+MoodStabilizers = c("lithium", "lamotrigine", "lamictal", "valproate","valproic acid", "divalproex", "depakote", "carbamazepine", "tegretol","depakote")
+gngb_data$onMoodStabilizer <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                                    keywords = MoodStabilizers)
+
+Tricyclics = c("amitriptyline", "nortriptyline", "imipramine", "desipramine","clomipramine", "doxepin", "trimipramine", "protriptyline", "elavil")
+gngb_data$onTricyclics <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, 
+                                keywords = Tricyclics)
+
+
+Stimulants <- c("adderall", "concerta", "vyvanse", "focalin", "focalyn", "modafinil", "phentermine")
+gngb_data$onStimulants <- apply(gngb_data[, paste0("medication_", 1:9)], 1,keyword_check, keywords = Stimulants
+)
+
+
+
+# Create Table
+# Vector of medication categories
+medication_categories <- c("onSSRI", "onSNRI", "onNDRI", "onAnxiolytics", "onMoodStabilizer", "onStimulants","onTricyclics")
+
+# Group levels
+group_levels <- c("Healthy", "HasJustDepression", "HasComorbidDepAnx")
+
+# Initialize results list
+med_table <- lapply(medication_categories, function(med_var) {
+  sapply(group_levels, function(group) {
+    subset_data <- gngb_data[gngb_data$group == group, ]
+    N <- sum(subset_data[[med_var]], na.rm = TRUE)
+    total <- nrow(subset_data)
+    percent <- if (total > 0) round(100 * N / total, 1) else 0
+    sprintf("%d (%.1f%%)", N, percent)
+  })
+})
+
+# Convert to data.frame
+med_table_df <- as.data.frame(do.call(rbind, med_table))
+rownames(med_table_df) <- gsub("^on", "", medication_categories)
+colnames(med_table_df) <- c("HC", "Dep", "AnxDep")
+
+# write.csv(med_table_df,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/medication_classifications.csv")
+
+
+gngb_data$medicated <- apply(gngb_data[, paste0("medication_", 1:9)], 1, keyword_check, keywords = c(SSRIs,SNRIs,NDRIs,Anxiolytics,MoodStabilizers,Tricyclics,Stimulants))
+
+
+# Investigate if proportion of individuals on psychotropic medications differs for clinical groups
+clinical_groups = gngb_data %>% filter(group=="HasJustDepression" | group == "HasComorbidDepAnx")
+clinical_groups$group <- droplevels(clinical_groups$group)
+# Create a contingency table
+contingency_table <- table(clinical_groups$group, clinical_groups$medicated)
+
+# Perform the chi-squared test
+chi_squared_test <- chisq.test(contingency_table)
+
+# Calculate medication ratios for each group
+medication_ratios <- tapply(clinical_groups$medicated, clinical_groups$group, mean)
+
+# Print results
+print(chi_squared_test)
+print(medication_ratios)
+
+cohens_w <- sqrt(chi_squared_test$statistic / sum(contingency_table))
+
+
+
+```
+```{r Descriptive Statistics for cutoffs of mild/moderate/severe affective symptoms}
+dep_group = gngb_data %>% filter(group=="HasJustDepression")
+sum(dep_group$phq_score >= 0 & dep_group$phq_score<5)/nrow(dep_group)
+sum(dep_group$phq_score >= 5 & dep_group$phq_score<10)/nrow(dep_group)
+sum(dep_group$phq_score >= 10 & dep_group$phq_score<15)/nrow(dep_group)
+sum(dep_group$phq_score >= 15 & dep_group$phq_score<20)/nrow(dep_group)
+sum(dep_group$phq_score >= 20)/nrow(dep_group)
+
+sum(dep_group$oasis_score >= 6 & dep_group$oasis_score < 10)/nrow(dep_group)
+sum(dep_group$oasis_score >= 10 & dep_group$oasis_score < 12)/nrow(dep_group)
+sum(dep_group$oasis_score >= 12)/nrow(dep_group)
+
+
+
+anx_dep_group = gngb_data %>% filter(group=="HasComorbidDepAnx")
+sum(anx_dep_group$phq_score >= 0 & anx_dep_group$phq_score<5)/nrow(anx_dep_group)
+sum(anx_dep_group$phq_score >= 5 & anx_dep_group$phq_score<10)/nrow(anx_dep_group)
+sum(anx_dep_group$phq_score >= 10 & anx_dep_group$phq_score<15)/nrow(anx_dep_group)
+sum(anx_dep_group$phq_score >= 15 & anx_dep_group$phq_score<20)/nrow(anx_dep_group)
+sum(anx_dep_group$phq_score >= 20)/nrow(anx_dep_group)
+
+sum(anx_dep_group$oasis_score >= 6 & anx_dep_group$oasis_score < 10)/nrow(anx_dep_group)
+sum(anx_dep_group$oasis_score >= 10 & anx_dep_group$oasis_score < 12)/nrow(anx_dep_group)
+sum(anx_dep_group$oasis_score >= 12)/nrow(anx_dep_group)
+
+
+healthy_group = gngb_data %>% filter(group=="Healthy")
+sum(healthy_group$phq_score >= 0 & healthy_group$phq_score<5)/nrow(healthy_group)
+sum(healthy_group$phq_score >= 5 & healthy_group$phq_score<10)/nrow(healthy_group)
+sum(healthy_group$phq_score >= 10 & healthy_group$phq_score<15)/nrow(healthy_group)
+sum(healthy_group$phq_score >= 15 & healthy_group$phq_score<20)/nrow(healthy_group)
+sum(healthy_group$phq_score >= 20)/nrow(healthy_group)
+
+sum(healthy_group$oasis_score >= 6 & healthy_group$oasis_score < 10)/nrow(healthy_group)
+sum(healthy_group$oasis_score >= 10 & healthy_group$oasis_score < 12)/nrow(healthy_group)
+sum(healthy_group$oasis_score >= 12)/nrow(healthy_group)
+
+```
+
+```{r Accuracy and Reaction Times Differed by Task Condition}
+gngb_long_acc <- gngb_data %>%
+  gather(key = "condition", value = "accuracy",
+         go_win_accuracy, go_lose_accuracy, nogo_win_accuracy, nogo_lose_accuracy)
+
+gngb_long_acc$condition = factor(gngb_long_acc$condition, levels = c("go_lose_accuracy", "nogo_win_accuracy", "nogo_lose_accuracy","go_win_accuracy"))
+contrasts(gngb_long_acc$condition) = contr.Sum(levels(gngb_long_acc$condition))
+
+model_lme = lmer(accuracy ~ condition*group+age+sex+(1|id),gngb_long_acc)
+## output model summary
+models_list = c(model_lme)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+model_summaries <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "nogo_lose_accuracy" = "NTL",
+    "nogo_win_accuracy" = "NTW",
+    "go_lose_accuracy" = "GTL",
+    "go_win_accuracy" = "GTW",
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+
+
+## REACTION TIME AND group
+
+gngb_long_rt <- gngb_data %>%
+  gather(key = "condition", value = "rt",
+         mean_rt_go_win, mean_rt_go_lose, mean_rt_nogo_win, mean_rt_nogo_lose)
+
+gngb_long_rt$condition = factor(gngb_long_rt$condition, levels = c("mean_rt_go_lose", "mean_rt_nogo_win", "mean_rt_nogo_lose","mean_rt_go_win"))
+contrasts(gngb_long_rt$condition) = contr.Sum(levels(gngb_long_rt$condition))
+
+
+model = lmer(rt ~ condition*group+sex +age+(1|id),gngb_long_rt)
+
+models_list = c(model)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+model_summaries <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "mean_rt_nogo_lose" = "NTL",
+    "mean_rt_nogo_win" = "NTW",
+    "mean_rt_go_lose" = "GTL",
+    "mean_rt_go_win" = "GTW",
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+```
+```{r Accuracy and Reaction Times Differed by Task Condition, Controlling for Working Memory}
+## Accuracy
+gngb_long_acc <- gngb_data %>%
+  gather(key = "condition", value = "accuracy",
+         go_win_accuracy, go_lose_accuracy, nogo_win_accuracy, nogo_lose_accuracy)
+
+gngb_long_acc$condition = factor(gngb_long_acc$condition, levels = c("go_lose_accuracy", "nogo_win_accuracy", "nogo_lose_accuracy","go_win_accuracy"))
+contrasts(gngb_long_acc$condition) = contr.Sum(levels(gngb_long_acc$condition))
+
+model_lme = lmer(accuracy ~ condition*group + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+## output model summary
+models_list = c(model_lme)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+model_summaries <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "nogo_lose_accuracy" = "NTL",
+    "nogo_win_accuracy" = "NTW",
+    "go_lose_accuracy" = "GTL",
+    "go_win_accuracy" = "GTW",
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+# Try this with extreme values included
+gngb_long_acc <- gngb_data_outliers_included %>%
+  gather(key = "condition", value = "accuracy",
+         go_win_accuracy, go_lose_accuracy, nogo_win_accuracy, nogo_lose_accuracy)
+
+gngb_long_acc$condition = factor(gngb_long_acc$condition, levels = c("go_lose_accuracy", "nogo_win_accuracy", "nogo_lose_accuracy","go_win_accuracy"))
+contrasts(gngb_long_acc$condition) = contr.Sum(levels(gngb_long_acc$condition))
+
+model_lme = lmer(accuracy ~ condition*group + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+## output model summary
+models_list = c(model_lme)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+
+
+## REACTION TIME AND group
+
+gngb_long_rt <- gngb_data %>%
+  gather(key = "condition", value = "rt",
+         mean_rt_go_win, mean_rt_go_lose, mean_rt_nogo_win, mean_rt_nogo_lose)
+
+gngb_long_rt$condition = factor(gngb_long_rt$condition, levels = c("mean_rt_go_lose", "mean_rt_nogo_win", "mean_rt_nogo_lose","mean_rt_go_win"))
+contrasts(gngb_long_rt$condition) = contr.Sum(levels(gngb_long_rt$condition))
+
+
+model = lmer(rt ~ condition*group+sex +age+list_sort_fully_corrected_t_score+(1|id),gngb_long_rt)
+models_list = c(model)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+model_summaries <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "mean_rt_nogo_lose" = "NTL",
+    "mean_rt_nogo_win" = "NTW",
+    "mean_rt_go_lose" = "GTL",
+    "mean_rt_go_win" = "GTW",
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+# Try this with extreme values included
+gngb_long_rt <- gngb_data_outliers_included %>%
+  gather(key = "condition", value = "rt",
+         mean_rt_go_win, mean_rt_go_lose, mean_rt_nogo_win, mean_rt_nogo_lose)
+
+gngb_long_rt$condition = factor(gngb_long_rt$condition, levels = c("mean_rt_go_lose", "mean_rt_nogo_win", "mean_rt_nogo_lose","mean_rt_go_win"))
+contrasts(gngb_long_rt$condition) = contr.Sum(levels(gngb_long_rt$condition))
+
+
+model = lmer(rt ~ condition*group+sex +age+list_sort_fully_corrected_t_score+(1|id),gngb_long_rt)
+models_list = c(model)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+
+# write.csv(model_summaries,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/LME_rt_by_group.csv")
+```
+```{r Accuracy and Reaction Times Differed by Task Condition, Bayesian Analyses}
+set.seed(23)
+# use gngb_long_acc from previous chunk
+
+# remove NA values
+clean_gngb_long_acc <- na.omit(gngb_long_acc[,c("accuracy","condition","group","age","sex","id")])
+clean_gngb_long_acc$id = as.factor(clean_gngb_long_acc$id)
+
+
+full_model = lmBF(formula = accuracy ~ condition*group+group+condition+sex+age+id,clean_gngb_long_acc)
+
+
+
+full_model_no_group = lmBF(formula = accuracy ~ group:condition+condition+sex+age+id,clean_gngb_long_acc)
+full_model/full_model_no_group
+
+full_model_no_condition = lmBF(formula = accuracy ~ group:condition+group+sex+age+id,clean_gngb_long_acc)
+full_model/full_model_no_condition
+
+full_model_no_int = lmBF(formula = accuracy ~ condition+group+sex+age+id,clean_gngb_long_acc)
+full_model/full_model_no_int
+
+full_model_no_group_no_condition = lmBF(formula = accuracy ~ condition:group+sex+age+id,clean_gngb_long_acc)
+full_model/full_model_no_group_no_condition
+
+
+
+# remove NA values
+clean_gngb_long_rt <- na.omit(gngb_long_rt[,c("rt","condition","group","age","sex","id")])
+clean_gngb_long_rt$id = as.factor(clean_gngb_long_rt$id)
+
+full_model_rt = lmBF(formula = rt ~ condition*group+group+condition+sex+age+id,clean_gngb_long_rt)
+
+full_model_no_group_rt = lmBF(formula = rt ~ group:condition+condition+sex+age+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_group_rt
+
+full_model_no_condition_rt = lmBF(formula = rt ~ group:condition+group+sex+age+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_condition_rt
+
+full_model_no_int_rt = lmBF(formula = rt ~ condition+group+sex+age+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_int_rt
+
+full_model_no_group_no_condition_rt = lmBF(formula = rt ~ condition:group+sex+age+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_group_no_condition_rt
+
+
+
+
+
+
+
+# Control for working memory
+
+clean_gngb_long_acc <- na.omit(gngb_long_acc[,c("accuracy","condition","group","list_sort_fully_corrected_t_score","age","sex","id")])
+clean_gngb_long_acc$id = as.factor(clean_gngb_long_acc$id)
+
+
+full_model = lmBF(formula = accuracy ~ condition*group+group+condition+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_acc)
+
+
+
+full_model_no_group = lmBF(formula = accuracy ~ group:condition+condition+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_acc)
+full_model/full_model_no_group
+
+full_model_no_condition = lmBF(formula = accuracy ~ group:condition+group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_acc)
+full_model/full_model_no_condition
+
+full_model_no_int = lmBF(formula = accuracy ~ condition+group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_acc)
+full_model/full_model_no_int
+
+full_model_no_group_no_condition = lmBF(formula = accuracy ~ condition:group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_acc)
+full_model/full_model_no_group_no_condition
+
+
+
+# remove NA values
+clean_gngb_long_rt <- na.omit(gngb_long_rt[,c("rt","condition","group","list_sort_fully_corrected_t_score","age","sex","id")])
+clean_gngb_long_rt$id = as.factor(clean_gngb_long_rt$id)
+
+full_model_rt = lmBF(formula = rt ~ condition*group+group+condition+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_rt)
+
+full_model_no_group_rt = lmBF(formula = rt ~ group:condition+condition+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_group_rt
+
+full_model_no_condition_rt = lmBF(formula = rt ~ group:condition+group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_condition_rt
+
+full_model_no_int_rt = lmBF(formula = rt ~ condition+group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_int_rt
+
+full_model_no_group_no_condition_rt = lmBF(formula = rt ~ condition:group+sex+age+list_sort_fully_corrected_t_score+id,clean_gngb_long_rt)
+full_model_rt/full_model_no_group_no_condition_rt
+
+
+```
+```{r Accuracy and Reaction Times Differed by Task Condition, Plot}
+
+compare.plot.boxplot.with.mean <- function(db, x.var, y.var, group.colors=NULL, fill.var=NULL, title="", dot.alpha=.4, y.limits=NULL) {
+  # Basic ggplot object
+  p <- db %>%
+    ggplot(aes(x = !!sym(x.var), y = !!sym(y.var), fill = !!sym(fill.var), group = interaction(!!sym(x.var), !!sym(fill.var))))
+
+  # Add boxplots and jitter
+  p <- p + 
+    geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.8), alpha = 0.7, color = "black") +
+    geom_jitter(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8), 
+                size = .75, alpha = dot.alpha, color = "black")
+
+  # Add SE bars: Black "border"
+  p <- p +
+    stat_summary(fun.data = function(x) {
+      mean_val <- mean(x)
+      se_val <- sd(x) / sqrt(length(x))
+      return(data.frame(y = mean_val, ymin = mean_val - se_val, ymax = mean_val + se_val))
+    }, geom = "errorbar", aes(ymin = after_stat(ymin), ymax = after_stat(ymax)), 
+       width = 0.2, size = 1.5, color = "black", position = position_dodge(width = 0.8)) +
+    # Add SE bars: White on top of black for "border" effect
+    stat_summary(fun.data = function(x) {
+      mean_val <- mean(x)
+      se_val <- sd(x) / sqrt(length(x))
+      return(data.frame(y = mean_val, ymin = mean_val - se_val, ymax = mean_val + se_val))
+    }, geom = "errorbar", aes(ymin = after_stat(ymin), ymax = after_stat(ymax)), 
+       width = 0.2, size = 0.7, color = "white", position = position_dodge(width = 0.8))
+
+  # Add diamonds for the mean, smaller size, with white fill and black border (after error bars)
+  p <- p +
+    stat_summary(fun = mean, geom = "point", shape = 21, size = 2.5, fill = "white", color = "black", 
+                 position = position_dodge(width = 0.8))
+
+  # Set labels and theme
+  p <- p +
+    labs(y = "", x="") +
+    theme_classic()
+  
+  # If group.colors is provided, add color scales
+  if (!is.null(group.colors)) {
+    p <- p + 
+      scale_fill_manual(values = group.colors) +
+      scale_color_manual(values = group.colors)
+  }
+
+  # Set y-axis limits if provided
+  if (!is.null(y.limits)) {
+    p <- p + scale_y_continuous(limits = y.limits)
+  }
+
+  return(p)
+}
+
+
+gngb_long_acc <- gngb_data %>%
+  gather(key = "condition", value = "accuracy",
+         go_win_accuracy, go_lose_accuracy, nogo_win_accuracy, nogo_lose_accuracy)%>%
+  mutate(condition = factor(condition, levels = c("go_win_accuracy", "go_lose_accuracy", 
+                                                  "nogo_win_accuracy", "nogo_lose_accuracy")))%>%
+  mutate(group = case_when(
+    group == "Healthy" ~ "A_Healthy",
+    group == "HasJustDepression" ~ "B_HasJustDepression",
+    group == "HasComorbidDepAnx" ~ "C_HasComorbidDepAnx"
+  ))
+
+gngb_long_rt <- gngb_data %>%
+  gather(key = "condition", value = "rt",
+         mean_rt_go_win, mean_rt_nogo_win, mean_rt_go_lose, mean_rt_nogo_lose)%>%
+  mutate(condition = factor(condition, levels = c("mean_rt_go_win", "mean_rt_go_lose", 
+                                                  "mean_rt_nogo_win", "mean_rt_nogo_lose")))%>%
+  mutate(group = case_when(
+    group == "Healthy" ~ "A_Healthy",
+    group == "HasJustDepression" ~ "B_HasJustDepression",
+    group == "HasComorbidDepAnx" ~ "C_HasComorbidDepAnx"
+  ))
+
+
+
+group.colors = c("#16E996", "#E99616", "#9616E9")
+
+compare.plot.boxplot.with.mean(gngb_long_acc, x.var="condition", y.var="accuracy", group.colors=group.colors, fill.var="group", title="Blah Blah")
+
+compare.plot.boxplot.with.mean(gngb_long_rt, x.var="condition", y.var="rt", group.colors=group.colors, fill.var="group", title="Blah Blah", y.limits = c(0, 1.25))
+
+
+
+
+
+
+```
+```{r Accuracy and Reaction Times Within Each Condition Separately}
+model = lm(go_win_accuracy ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(go_lose_accuracy ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(nogo_win_accuracy ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(nogo_lose_accuracy ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+
+
+model = lm(mean_rt_go_win ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(mean_rt_go_lose ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(mean_rt_nogo_win ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+model = lm(mean_rt_nogo_lose ~  group +age+sex,gngb_data)
+Anova(model,test="F")
+
+
+```
+
+```{r Accuracy Related to Affective Symptom Measures}
+# Test models without working memory included
+summarize_lm_models <- function(data, parameters, symptoms) {
+  models_list <- list()
+  
+  for (parameter in parameters) {
+    for (symptom in symptoms) {
+      formula <- as.formula(paste(parameter, "~ group *", symptom, " + age + sex"))
+      model <- lm(formula, data = data)
+      model_name <- paste(parameter, symptom, sep = "_")
+      models_list[[model_name]] <- model
+     # print(summary(model))
+    }
+  }
+  
+  return(models_list)
+}
+
+parameters <- c("go_lose_accuracy","nogo_win_accuracy")
+symptoms <- c("SHAPS_total", "phq_score", "oasis_score","rrs_total_score", "PSWQ_total", "asi3_score","rrs_reflection","rrs_depression","rrs_brooding", "asi3_cognitive_score", "asi3_physical_score", "asi3_social_score")
+
+
+models = summarize_lm_models(clinical_groups_data, parameters,symptoms)
+
+model_summaries_lm = summarize_and_refine_model_lm(models)
+
+# Test PHQ and OASIS as predictors of GTL in same model
+model_list = list() 
+model = lm(go_lose_accuracy~group + phq_score + oasis_score + age + sex,clinical_groups_data)
+vif(model)
+model_list[["model"]] = model
+model_summaries = summarize_and_refine_model_lm(model_list)
+
+
+
+
+# Test models with working memory
+summarize_lm_models <- function(data, parameters, symptoms) {
+  models_list <- list()
+  
+  for (parameter in parameters) {
+    for (symptom in symptoms) {
+      formula <- as.formula(paste(parameter, "~ group *", symptom, "+ list_sort_fully_corrected_t_score + age + sex"))
+      model <- lm(formula, data = data)
+      model_name <- paste(parameter, symptom, sep = "_")
+      models_list[[model_name]] <- model
+     # print(summary(model))
+    }
+  }
+  
+  return(models_list)
+}
+
+
+
+models = summarize_lm_models(clinical_groups_data, parameters,symptoms)
+
+model_summaries_lm_WM = summarize_and_refine_model_lm(models)
+
+```
+```{r Accuracy Related to Affective Symptom Measures, Plot}
+clean_gngb_data <- clinical_groups_data %>%
+  mutate(group = case_when(
+    group == "HasJustDepression" ~ "B_HasJustDepression",
+    group == "HasComorbidDepAnx" ~ "C_HasComorbidDepAnx"
+  ),
+  group = factor(group, levels = c("B_HasJustDepression", "C_HasComorbidDepAnx")))
+contrasts(clean_gngb_data$group) = contr.Sum(levels(clean_gngb_data$group))
+
+
+
+model = lm(go_lose_accuracy~oasis_score*group + age + sex,clean_gngb_data)
+data <- ggpredict(model, terms=c('oasis_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = oasis_score, y = go_lose_accuracy, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "oasis_score", y = "go_lose_accuracy") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+model = lm(go_lose_accuracy~phq_score*group + age + sex,clean_gngb_data)
+data <- ggpredict(model, terms=c('phq_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = phq_score, y = go_lose_accuracy, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "phq_score", y = "go_lose_accuracy") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+model = lm(go_lose_accuracy~asi3_score*group + age + sex,clean_gngb_data)
+data <- ggpredict(model, terms=c('asi3_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = asi3_score, y = go_lose_accuracy, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "asi3_score", y = "go_lose_accuracy") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+model = lm(go_lose_accuracy~rrs_brooding*group + age + sex,clean_gngb_data)
+data <- ggpredict(model, terms=c('rrs_brooding','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = rrs_brooding, y = go_lose_accuracy, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "rrs_brooding", y = "go_lose_accuracy") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+```
+
+```{r Reaction Times Did Not Relate to Affective Symptom Measures}
+# Test models without working memory included
+summarize_lm_models <- function(data, parameters, symptoms) {
+  models_list <- list()
+  
+  for (parameter in parameters) {
+    for (symptom in symptoms) {
+      formula <- as.formula(paste(parameter, "~ group *", symptom, " + age + sex"))
+      model <- lm(formula, data = data)
+      model_name <- paste(parameter, symptom, sep = "_")
+      models_list[[model_name]] <- model
+     # print(summary(model))
+    }
+  }
+  
+  return(models_list)
+}
+
+parameters <- c("mean_rt_go_lose","mean_rt_nogo_win")
+symptoms <- c("phq_score", "oasis_score","SHAPS_total", "PSWQ_total", "rrs_total_score",  "asi3_score","rrs_reflection","rrs_depression","rrs_brooding", "asi3_cognitive_score", "asi3_physical_score", "asi3_social_score")
+
+
+models = summarize_lm_models(clinical_groups_data, parameters,symptoms)
+
+model_summaries_lm = summarize_and_refine_model_lm(models)
+
+model_summaries_lm <- model_summaries_lm %>%
+  mutate(b_emm_emt = case_when(
+    term_simple == "group" ~ emmeans_strings,  # If term_simple is "group", use emmeans_strings
+    grepl(":", term_simple) ~ emtrends_strings,  # If term_simple contains ":", use emtrends_strings
+    TRUE ~ paste0("b=", word(b_CI, 1))  # For b_CI, prepend "b=" to the first word
+  )) %>%
+  dplyr::select(c(-b_CI, -emmeans_strings, -contrasts_strings, -emtrends_strings)) %>%  # Drop the specified columns
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC",
+    "SHAPS_total" = "SHAPS",
+    "group" = "Group",
+    "phq_score" = "PHQ",
+    "PSWQ_total" = "PSWQ",
+    "rrs_depression" = "RRS-Depression",
+    "rrs_reflection" = "RRS-Reflection",
+    "rrs_brooding" = "RRS-Brooding",
+    "rrs_total_score" = "RRS Total Score",
+    "asi3_cognitive_score" = "ASI-Cognitive",
+    "asi3_physical_score" = "ASI-Physical",
+    "asi3_social_score" = "ASI-Social",
+    "asi3_score" = "ASI Total Score",
+    "oasis_score" = "OASIS",
+    "age" = "Age",
+    "sex" = "Sex"
+    
+  )))
+
+# write.csv(model_summaries_lm,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/reaction_times_affective_symptom_measures.csv")
+
+```
+```{r Reaction Times Across Conditions and Affective Symptom Measures }
+# GTL - GTW
+clinical_groups_data$go_rt_diff = clinical_groups_data$mean_rt_go_lose - clinical_groups_data$mean_rt_go_win
+# NTW - NTL
+clinical_groups_data$nogo_rt_diff = clinical_groups_data$mean_rt_nogo_win - clinical_groups_data$mean_rt_nogo_lose
+
+model1 = lm(go_rt_diff ~ group*phq_score + age + sex,clinical_groups_data)
+Anova(model1,test="F")
+model2 = lm(go_rt_diff ~ group*oasis_score + age + sex,clinical_groups_data)
+Anova(model2,test="F")
+model3 = lm(nogo_rt_diff ~ group*phq_score + age + sex,clinical_groups_data)
+Anova(model3,test="F")
+emmeans(model3,~group)
+model4 = lm(nogo_rt_diff ~ group*oasis_score + age + sex,clinical_groups_data)
+Anova(model4,test="F")
+# marginal effect for group difference in NTW - NTL
+# Dep participants show a greater decrease in RT from NTL to NTW
+
+```
+
+
+```{r Model Fit Did Not Differ Across Groups}
+model = aov(RLDDM_F ~ group,gngb_data)
+anova_summary <- summary(model)
+# Calculate effect size (eta squared) of the anova
+sum_sq_model <- anova_summary[[1]]$`Sum Sq`[1]
+sum_sq_total <- sum(anova_summary[[1]]$`Sum Sq`)
+eta_squared <- sum_sq_model / sum_sq_total
+gngb_data %>%
+  group_by(group) %>%
+  summarise(mean_accuracy = mean(RLDDM_F, na.rm = TRUE))
+
+
+model = aov(RLDDM_model_accuracy ~ group,gngb_data)
+anova_summary <- summary(model)
+# Calculate effect size (eta squared) of the anova
+sum_sq_model <- anova_summary[[1]]$`Sum Sq`[1]
+sum_sq_total <- sum(anova_summary[[1]]$`Sum Sq`)
+eta_squared <- sum_sq_model / sum_sq_total
+gngb_data %>%
+  group_by(group) %>%
+  summarise(mean_accuracy = mean(RLDDM_model_accuracy, na.rm = TRUE))
+
+
+model = aov(RLDDM_avg_action_probability ~ group,gngb_data)
+summary(model)
+anova_summary <- summary(model)
+# Calculate effect size (eta squared) of the anova
+sum_sq_model <- anova_summary[[1]]$`Sum Sq`[1]
+sum_sq_total <- sum(anova_summary[[1]]$`Sum Sq`)
+eta_squared <- sum_sq_model / sum_sq_total
+gngb_data %>%
+  group_by(group) %>%
+  summarise(mean_avg_action_prob = mean(RLDDM_avg_action_probability, na.rm = TRUE))
+
+```
+
+```{r Computational Parameter Intercorrelations}
+vars = c("RLDDM_posterior_learning_rate","RLDDM_posterior_outcome_sensitivity", "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias", "RLDDM_posterior_starting_bias","RLDDM_posterior_decision_threshold")
+         
+corrplotplus(gngb_data[,vars],use.BF = FALSE, sig.cex = .8, R.cex = .7, sig.vjust = -0.3, sig.hjust = 0.1, R.vjust = 0.00, type="pearson")
+
+```
+```{r Computational Parameter Recoverability Analysis}
+# Optional function to plot correlations
+
+
+############### Analysis using participants' actual data to get generative parameter values ##############
+# Get parameter values used to simulate data and then those fitted to simulated data
+vars = c("RLDDM_posterior_learning_rate","RLDDM_posterior_outcome_sensitivity", "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias", "RLDDM_posterior_starting_bias","RLDDM_posterior_decision_threshold", "simfit_RLDDM_learning_rate","simfit_RLDDM_outcome_sensitivity", "simfit_RLDDM_go_bias", "simfit_RLDDM_pavlovian_bias", "simfit_RLDDM_starting_bias","simfit_RLDDM_decision_threshold")
+         
+corrplotplus(gngb_data[,vars], 1:6,7:12,use.BF = FALSE, sig.cex = .8, R.cex = .7, sig.vjust = -0.3, sig.hjust = 0.1, R.vjust = 0.00, type="pearson")
+
+
+############### Analysis using full reasonable distributions of generative parameter values ##############
+vars <- c(
+  "simmed_RLDDM_learning_rate",
+  "simmed_RLDDM_outcome_sensitivity",
+  "simmed_RLDDM_go_bias",
+  "simmed_RLDDM_pavlovian_bias",
+  "simmed_RLDDM_starting_bias",
+  "simmed_RLDDM_decision_threshold",
+  "posterior_RLDDM_learning_rate",
+  "posterior_RLDDM_outcome_sensitivity",
+  "posterior_RLDDM_go_bias",
+  "posterior_RLDDM_pavlovian_bias",
+  "posterior_RLDDM_starting_bias",
+  "posterior_RLDDM_decision_threshold"
+)
+corrplotplus(recoverability_data[,vars], 1:6,7:12,use.BF = FALSE, sig.cex = .8, R.cex = .7, sig.vjust = -0.3, sig.hjust = 0.1, R.vjust = 0.00, type="pearson")
+
+
+
+```
+
+```{r Computational Parameters Account for Task Behavior}
+# use gngb_long_acc from prior chunk
+model1 = lmer(accuracy ~ condition*RLDDM_posterior_learning_rate +age+sex+(1|id),gngb_long_acc)
+model2 = lmer(accuracy ~ condition*RLDDM_posterior_outcome_sensitivity +age+sex+(1|id),gngb_long_acc)
+model3 = lmer(accuracy ~ condition*RLDDM_posterior_go_bias +age+sex+(1|id),gngb_long_acc)
+model4 = lmer(accuracy ~ condition*RLDDM_posterior_decision_threshold +age+sex+(1|id),gngb_long_acc)
+model5 = lmer(accuracy ~ condition*RLDDM_posterior_starting_bias +age+sex+(1|id),gngb_long_acc)
+model6 = lmer(accuracy ~ condition*RLDDM_posterior_pavlovian_bias +age+sex+(1|id),gngb_long_acc)
+
+
+
+## output model summary
+models_list = c(model1,model2,model3,model4,model5,model6)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+model_summaries = model_summaries %>% filter(!term_simple %in% c("age","sex","condition"))
+model_summaries_clean <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "nogo_lose_accuracy" = "NTL",
+    "nogo_win_accuracy" = "NTW",
+    "go_lose_accuracy" = "GTL",
+    "go_win_accuracy" = "GTW",
+    "RLDDM_posterior_learning_rate" = "Learning Rate",
+    "RLDDM_posterior_outcome_sensitivity" = "Outcome Sensitivity",
+    "RLDDM_posterior_starting_bias" = "Starting Bias",
+    "RLDDM_posterior_pavlovian_bias" = "Pavlovian Bias",
+    "RLDDM_posterior_decision_threshold" = "Decision Threshold",
+    "RLDDM_posterior_go_bias" = "Go Bias",
+    "condition[S.GTL]" = "GTL",
+    "condition[S.GTW]" = "GTW",
+    "condition[S.NTW]" = "NTW"
+  )))
+
+
+## Controlling for working memory! ##
+
+# use gngb_long_acc from prior chunk
+model1 = lmer(accuracy ~ condition*RLDDM_posterior_learning_rate + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+model2 = lmer(accuracy ~ condition*RLDDM_posterior_outcome_sensitivity + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+model3 = lmer(accuracy ~ condition*RLDDM_posterior_go_bias + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+model4 = lmer(accuracy ~ condition*RLDDM_posterior_decision_threshold + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+model5 = lmer(accuracy ~ condition*RLDDM_posterior_starting_bias + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+model6 = lmer(accuracy ~ condition*RLDDM_posterior_pavlovian_bias + list_sort_fully_corrected_t_score+age+sex+(1|id),gngb_long_acc)
+
+
+
+## output model summary
+models_list = c(model1,model2,model3,model4,model5,model6)
+model_summaries <- summarize_and_refine_model_lme(models_list)
+model_summaries = model_summaries %>% filter(!term_simple %in% c("age","sex","list_sort_fully_corrected_t_score","condition"))
+model_summaries_clean <- model_summaries %>%
+  mutate_all(~ str_replace_all(., c(
+    "nogo_lose_accuracy" = "NTL",
+    "nogo_win_accuracy" = "NTW",
+    "go_lose_accuracy" = "GTL",
+    "go_win_accuracy" = "GTW",
+    "RLDDM_posterior_learning_rate" = "Learning Rate",
+    "RLDDM_posterior_outcome_sensitivity" = "Outcome Sensitivity",
+    "RLDDM_posterior_starting_bias" = "Starting Bias",
+    "RLDDM_posterior_pavlovian_bias" = "Pavlovian Bias",
+    "RLDDM_posterior_decision_threshold" = "Decision Threshold",
+    "RLDDM_posterior_go_bias" = "Go Bias",
+    "condition[S.GTL]" = "GTL",
+    "condition[S.GTW]" = "GTW",
+    "condition[S.NTW]" = "NTW"
+  )))
+
+
+
+
+```
+
+```{r Computational Parameters Did Not Differ Between Groups}
+
+
+
+summarize_lm_models <- function(data, parameters) {
+  models_list <- list()
+
+  for (parameter in parameters) {
+    formula <- as.formula(paste(parameter, "~ group + age + sex"))
+    model <- lm(formula, data = data)
+    model_name <- paste(parameter)
+    models_list[[model_name]] <- model
+#    print(summary(model))
+  }
+  return (models_list)
+}
+
+
+
+
+# Example usage
+parameters <- c("RLDDM_posterior_learning_rate", "RLDDM_posterior_outcome_sensitivity",
+                "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias",
+                "RLDDM_posterior_starting_bias", "RLDDM_posterior_decision_threshold")
+
+
+models = summarize_lm_models(gngb_data, parameters)
+
+
+model_summaries <- summarize_and_refine_model_lm(models)
+
+model_summaries <- model_summaries %>%
+  filter(!term_simple %in% c("age","sex")) %>%
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+
+## Now controlling for working memory! ##
+
+summarize_lm_models <- function(data, parameters) {
+  models_list <- list()
+
+  for (parameter in parameters) {
+    formula <- as.formula(paste(parameter, "~ group + list_sort_fully_corrected_t_score + age + sex"))
+    model <- lm(formula, data = data)
+    model_name <- paste(parameter)
+    models_list[[model_name]] <- model
+#    print(summary(model))
+  }
+  return (models_list)
+}
+
+
+
+
+# Example usage
+parameters <- c("RLDDM_posterior_learning_rate", "RLDDM_posterior_outcome_sensitivity",
+                "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias",
+                "RLDDM_posterior_starting_bias", "RLDDM_posterior_decision_threshold")
+
+
+models = summarize_lm_models(gngb_data, parameters)
+model_summaries <- summarize_and_refine_model_lm(models)
+model_summaries <- model_summaries %>%
+  filter(!term_simple %in% c("age","sex","list_sort_fully_corrected_t_score")) %>%
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+
+## Try with extreme values included
+models = summarize_lm_models(gngb_data_outliers_included, parameters)
+model_summaries <- summarize_and_refine_model_lm(models)
+model_summaries <- model_summaries %>%
+  filter(!term_simple %in% c("age","sex","list_sort_fully_corrected_t_score")) %>%
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC"
+  )))
+
+
+
+
+```
+```{r Computational Parameters Did Not Differ Between Groups, Bayesian Analyses}
+set.seed(23)
+
+clean_gngb_data <- na.omit(gngb_data[,c("RLDDM_posterior_decision_threshold","RLDDM_posterior_learning_rate","RLDDM_posterior_outcome_sensitivity","RLDDM_posterior_starting_bias","RLDDM_posterior_pavlovian_bias","RLDDM_posterior_go_bias","group","list_sort_fully_corrected_t_score","age","sex")])
+
+model <- lmBF( RLDDM_posterior_decision_threshold ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_decision_threshold ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+model <- lmBF( RLDDM_posterior_learning_rate ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_learning_rate ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+model <- lmBF( RLDDM_posterior_go_bias ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_go_bias ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+
+model <- lmBF( RLDDM_posterior_outcome_sensitivity ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_outcome_sensitivity ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+model <- lmBF( RLDDM_posterior_pavlovian_bias ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_pavlovian_bias ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+model <- lmBF( RLDDM_posterior_starting_bias ~ group + list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model_no_group = lmBF( RLDDM_posterior_starting_bias ~ list_sort_fully_corrected_t_score + age + sex, clean_gngb_data )
+model/model_no_group
+
+
+
+
+
+```
+```{r Computational Parameters Did Not Differ Between Healthy and Combined Clinical Groups}
+
+
+summarize_lm_models <- function(data, parameters) {
+  models_list <- list()
+
+  for (parameter in parameters) {
+    formula <- as.formula(paste(parameter, "~ dep_or_anx_dep + age + sex"))
+    model <- lm(formula, data = data)
+    model_name <- paste(parameter)
+    models_list[[model_name]] <- model
+#    print(summary(model))
+  }
+  return (models_list)
+}
+
+# Example usage
+parameters <- c("RLDDM_posterior_learning_rate", "RLDDM_posterior_outcome_sensitivity",
+                "RLDDM_posterior_go_bias", "RLDDM_posterior_pavlovian_bias",
+                "RLDDM_posterior_starting_bias", "RLDDM_posterior_decision_threshold")
+
+
+models = summarize_lm_models(gngb_data, parameters)
+Anova(models[[1]],test="F")
+Anova(models[[2]],test="F")
+Anova(models[[3]],test="F")
+Anova(models[[4]],test="F")
+Anova(models[[5]],test="F")
+Anova(models[[6]],test="F")
+
+
+
+
+
+```
+```{r Computational Parameters Did Not Differ Between Groups, Plot}
+compare.plot.boxplot.dots  <- function(db, x.var, y.var, group.colors=NULL, fill.var=NULL, title="", dot.alpha=.4, y.limits=NULL) {
+  p <- db %>%
+    ggplot(aes(x = !!sym(x.var), y = !!sym(y.var), fill = !!sym(fill.var)))
+
+  # Add boxplots
+  p <- p + 
+    geom_boxplot(outlier.shape = NA, position = position_dodge(width = 0.8), alpha = 0.7, color = "black") +
+    geom_jitter(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8), 
+                size = .75, alpha = dot.alpha, color = "black")
+  # Add SE bars: Black "border"
+  p <- p +
+    stat_summary(fun.data = function(x) {
+      mean_val <- mean(x)
+      se_val <- sd(x) / sqrt(length(x))
+      return(data.frame(y = mean_val, ymin = mean_val - se_val, ymax = mean_val + se_val))
+    }, geom = "errorbar", aes(ymin = after_stat(ymin), ymax = after_stat(ymax)), 
+       width = 0.2, size = 1.5, color = "black", position = position_dodge(width = 0.8)) +
+    # Add SE bars: White on top of black for "border" effect
+    stat_summary(fun.data = function(x) {
+      mean_val <- mean(x)
+      se_val <- sd(x) / sqrt(length(x))
+      return(data.frame(y = mean_val, ymin = mean_val - se_val, ymax = mean_val + se_val))
+    }, geom = "errorbar", aes(ymin = after_stat(ymin), ymax = after_stat(ymax)), 
+       width = 0.2, size = 0.7, color = "white", position = position_dodge(width = 0.8))
+
+  # Add diamonds for the mean, smaller size, with white fill and black border (after error bars)
+  p <- p +
+    stat_summary(fun = mean, geom = "point", shape = 21, size = 2.5, fill = "white", color = "black", 
+                 position = position_dodge(width = 0.8))
+  
+  p <- p +
+    labs(y = "", x="") +
+    theme_classic()
+  
+  # If group.colors is provided, add color scales
+  if (!is.null(group.colors)) {
+    p <- p + 
+      scale_fill_manual(values = group.colors) +
+      scale_color_manual(values = group.colors)
+  }
+
+  # Set y-axis limits if provided
+  if (!is.null(y.limits)) {
+    p <- p + scale_y_continuous(limits = y.limits)
+  }
+
+  return(p)
+}
+
+
+
+gngb_data_plot <- gngb_data %>%
+  mutate(group = case_when(
+    group == "Healthy" ~ "A_healthy",
+    group == "HasJustDepression" ~ "B_HasJustDepression",
+    group == "HasComorbidDepAnx" ~ "C_HasComorbidDepAnx"
+  ))
+group.colors <- c("#16E996", "#E99616", "#9616E9")
+
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_learning_rate", group.colors = group.colors, fill.var = "group")
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_outcome_sensitivity", group.colors = group.colors, fill.var = "group")
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_go_bias", group.colors = group.colors, fill.var = "group")
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_pavlovian_bias", group.colors = group.colors, fill.var = "group")
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_starting_bias", group.colors = group.colors, fill.var = "group")
+compare.plot.boxplot.dots(gngb_data_plot, "group", "RLDDM_posterior_decision_threshold", group.colors = group.colors, fill.var = "group")
+
+
+
+
+
+```
+
+```{r Computational Parameters Related to Affective Symptom Measures}
+
+summarize_lm_models <- function(data, parameters, symptoms) {
+  models_list <- list()
+  
+  for (parameter in parameters) {
+    for (symptom in symptoms) {
+      formula <- as.formula(paste(parameter, "~ group *", symptom, " + age + sex"))
+      model <- lm(formula, data = data)
+      model_name <- paste(parameter, symptom, sep = "_")
+      models_list[[model_name]] <- model
+     # print(summary(model))
+    }
+  }
+  
+  return(models_list)
+}
+
+# Example usage
+parameters <- c("RLDDM_posterior_pavlovian_bias", "RLDDM_posterior_outcome_sensitivity", "RLDDM_posterior_learning_rate","RLDDM_posterior_go_bias","RLDDM_posterior_starting_bias","RLDDM_posterior_decision_threshold")
+# parameters = c("RLDDM_posterior_pavlovian_bias")
+symptoms <- c("phq_score", "oasis_score","SHAPS_total", "PSWQ_total", "rrs_total_score", "asi3_score","rrs_reflection","rrs_depression", "rrs_brooding", "asi3_cognitive_score", "asi3_physical_score", "asi3_social_score")
+# symptoms = c("phq_score","oasis_score")
+models = summarize_lm_models(clinical_groups_data, parameters,symptoms)
+
+
+model_res = summarize_and_refine_model_lm(models)
+
+
+
+
+model_refined <- model_res %>%
+  mutate(b_emm_emt = case_when(
+    term_simple == "group" ~ emmeans_strings,  # If term_simple is "group", use emmeans_strings
+    grepl(":", term_simple) ~ emtrends_strings,  # If term_simple contains ":", use emtrends_strings
+    TRUE ~ paste0("b=", word(b_CI, 1))  # For b_CI, prepend "b=" to the first word
+  )) %>%
+  dplyr::select(c(-b_CI, -emmeans_strings, -contrasts_strings, -emtrends_strings)) %>%  # Drop the specified columns
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC",
+    "SHAPS_total" = "SHAPS",
+    "group" = "Group",
+    "phq_score" = "PHQ-9",
+    "PSWQ_total" = "PSWQ",
+    "rrs_total_score" = "RRS",
+    "asi3_cognitive_score" = "ASI-Cognitive",
+    "asi3_physical_score" = "ASI-Physical",
+    "oasis_score" = "OASIS",
+    "asi3_social_score" = "ASI-Social"
+    
+    
+  )))
+
+
+
+summarize_lm_models <- function(data, parameters, symptoms) {
+  models_list <- list()
+  
+  for (parameter in parameters) {
+    for (symptom in symptoms) {
+      formula <- as.formula(paste(parameter, "~ group *", symptom, "+ list_sort_fully_corrected_t_score + age + sex"))
+      model <- lm(formula, data = data)
+      model_name <- paste(parameter, symptom, sep = "_")
+      models_list[[model_name]] <- model
+     # print(summary(model))
+    }
+  }
+  
+  return(models_list)
+}
+
+models = summarize_lm_models(clinical_groups_data, parameters,symptoms)
+
+
+model_res_wm = summarize_and_refine_model_lm(models)
+
+model_refined_wM <- model_res_wm %>%
+  mutate(b_emm_emt = case_when(
+    term_simple == "group" ~ emmeans_strings,  # If term_simple is "group", use emmeans_strings
+    grepl(":", term_simple) ~ emtrends_strings,  # If term_simple contains ":", use emtrends_strings
+    TRUE ~ paste0("b=", word(b_CI, 1))  # For b_CI, prepend "b=" to the first word
+  )) %>%
+  dplyr::select(c(-b_CI, -emmeans_strings, -contrasts_strings, -emtrends_strings)) %>%  # Drop the specified columns
+  mutate_all(~ str_replace_all(., c(
+    "HasComorbidDepAnx" = "AnxDep",
+    "HasJustDepression" = "Dep",
+    "Healthy" = "HC",
+    "SHAPS_total" = "SHAPS",
+    "group" = "Group",
+    "phq_score" = "PHQ",
+    "PSWQ_total" = "PSWQ",
+    "rrs_depression" = "RRS-Depression",
+    "rrs_reflection" = "RRS-Reflection",
+    "rrs_brooding" = "RRS-Brooding",
+    "rrs_total_score" = "RRS Total Score",
+    
+    "asi3_cognitive_score" = "ASI-Cognitive",
+    "asi3_physical_score" = "ASI-Physical",
+    "asi3_social_score" = "ASI-Social",
+    "asi3_score" = "ASI Total Score",
+    "oasis_score" = "OASIS",
+
+    "list_sort_fully_corrected_t_score" = "Working Memory",
+    "age" = "Age",
+    "sex" = "Sex"
+    
+  )))
+
+
+# write.csv(model_refined_wM,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/comp_params_affective_symptom_measures.csv")
+
+anxious_dep = gngb_data %>% dplyr::filter(group=="HasComorbidDepAnx")
+model = lm(RLDDM_posterior_pavlovian_bias~ phq_score + age + sex,anxious_dep)
+models_list <- list()
+models_list[["Model1"]] = model
+summaries_anx_dep = summarize_and_refine_model_lm(models_list)
+
+just_dep = gngb_data %>% dplyr::filter(group=="HasJustDepression")
+model = lm(RLDDM_posterior_pavlovian_bias~ phq_score + age + sex,just_dep)
+models_list <- list()
+models_list[["Model1"]] = model
+summaries_dep = summarize_and_refine_model_lm(models_list)
+
+model = lm(phq_score ~ RLDDM_posterior_pavlovian_bias +RLDDM_posterior_learning_rate + group + age + sex,clinical_groups_data)
+models_list <- list()
+models_list[["Model1"]] = model
+summaries = summarize_and_refine_model_lm(models_list)
+
+
+```
+```{r Computational Parameters Related to Affective Symptom Measures, Plot}
+clean_gngb_data <- clinical_groups_data %>%
+  mutate(group = case_when(
+    group == "HasJustDepression" ~ "B_HasJustDepression",
+    group == "HasComorbidDepAnx" ~ "C_HasComorbidDepAnx"
+  ),
+  group = factor(group, levels = c("B_HasJustDepression", "C_HasComorbidDepAnx")))
+contrasts(clean_gngb_data$group) = contr.Sum(levels(clean_gngb_data$group))
+
+
+
+model = lm(RLDDM_posterior_pavlovian_bias~asi3_social_score*group + age + sex,clean_gngb_data)
+Anova(model,test="F")
+data <- ggpredict(model, terms=c('asi3_social_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = asi3_social_score, y = RLDDM_posterior_pavlovian_bias, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "asi3_social_score", y = "RLDDM_posterior_pavlovian_bias") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+
+model = lm(RLDDM_posterior_pavlovian_bias~asi3_physical_score*group + age + sex,clean_gngb_data)
+Anova(model,test="F")
+data <- ggpredict(model, terms=c('asi3_physical_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = asi3_physical_score, y = RLDDM_posterior_pavlovian_bias, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "asi3_physical_score", y = "RLDDM_posterior_pavlovian_bias") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+model = lm(RLDDM_posterior_pavlovian_bias~phq_score*group + age + sex,clean_gngb_data)
+Anova(model,test="F")
+data <- ggpredict(model, terms=c('phq_score','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = phq_score, y = RLDDM_posterior_pavlovian_bias, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "phq_score", y = "RLDDM_posterior_pavlovian_bias") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+model = lm(RLDDM_posterior_pavlovian_bias~rrs_brooding*group + age + sex,clean_gngb_data)
+Anova(model,test="F")
+data <- ggpredict(model, terms=c('rrs_brooding','group'))
+ggplot(data, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1) + # Draws the lines
+  geom_point(data = clean_gngb_data, aes(x = rrs_brooding, y = RLDDM_posterior_pavlovian_bias, color = group), alpha = 1, shape = 16) + # Adds original data points
+  scale_color_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for lines and points
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.3, color = NA) + # Adds confidence interval ribbons without border
+  scale_fill_manual(values = c("A_Healthy" = "#16E996", "C_HasComorbidDepAnx" = "#9616E9","B_HasJustDepression"="#E99616")) + # Custom colors for the confidence interval fills
+  labs(x = "rrs_brooding", y = "RLDDM_posterior_pavlovian_bias") +
+  theme_classic() # Using a minimal theme for aesthetics
+
+
+
+
+
+
+
+
+
+
+```
+
+```{r Medication Status Did Not Relate to Computational Parameters or Accuracy }
+# Note that you must first run the chunk 'Descriptive Statistics for Medication Status'
+
+patients = gngb_data%>% filter(group == "HasComorbidDepAnx" | group == "HasJustDepression" )
+# sum code sex and medicated
+patients$sex = factor(patients$sex)
+contrasts(patients$sex) = contr.Sum(levels(patients$sex))
+patients$medicated = factor(patients$medicated)
+contrasts(patients$medicated) = contr.Sum(levels(patients$medicated))
+
+models <- list()
+
+models[["1"]] = lm(RLDDM_posterior_pavlovian_bias ~ age+sex+medicated, patients)
+models[["2"]] = lm(RLDDM_posterior_go_bias ~ age+sex+medicated, patients)
+models[["3"]] = lm(RLDDM_posterior_outcome_sensitivity ~ age+sex+medicated, patients)
+models[["4"]] = lm(RLDDM_posterior_learning_rate ~ age+sex+medicated, patients)
+models[["5"]] = lm(RLDDM_posterior_decision_threshold ~ age+sex+medicated, patients)
+models[["6"]] = lm(RLDDM_posterior_starting_bias ~ age+sex+medicated, patients)
+
+model_summaries <- summarize_and_refine_model_lm(models)
+
+mf_models = list()
+mf_models[["1"]] = lm(go_lose_accuracy ~ age+sex+medicated, patients)
+mf_models[["2"]] = lm(go_win_accuracy ~ age+sex+medicated, patients)
+mf_models[["3"]] = lm(nogo_lose_accuracy ~ age+sex+medicated, patients)
+mf_models[["4"]] = lm(nogo_win_accuracy ~ age+sex+medicated, patients)
+
+
+model_summaries <- summarize_and_refine_model_lm(mf_models)
+
+```
+
+
