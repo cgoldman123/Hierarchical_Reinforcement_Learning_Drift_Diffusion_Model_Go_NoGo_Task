@@ -1,9 +1,19 @@
 
 # README
 
-## Description
 
-This repository contains MATLAB and Python scripts for modeling, simulating, and fitting **Reinforcement Learning Drift Diffusion Models (RLDDMs)** to behavioral data. The scripts support hierarchical model fitting, parameter optimization, and batch processing.
+This repository accompanies the manuscript *Pavlovian Bias is Associated with Symptom Severity but Not Diagnostic Status in Individuals with Affective Disorders* (Goldman et al., 2025). It provides the full set of scripts, data, and outputs used to model, fit, and analyze behavioral data from a Go/No-Go task using Reinforcement Learning Drift Diffusion Models (RLDDMs). The repository integrates MATLAB and Python code for computational modeling, along with R scripts and datasets for statistical analysis and visualization.
+
+## Data Analysis Files
+The `data_and_analysis_scripts/` folder contains the following:
+
+- `GNG_analyses_4-30-25.Rmd`: R Markdown notebook for conducting the main behavioral and statistical analyses reported in the paper. 
+- `corrplotplus.R`: Custom R function for generating enhanced correlation matrices with annotated Bayes Factors or p-values, significance stars, and optional clustering.
+- `GNG_experiment_data_5-6-25.csv`: Dataset including computational and descriptive indices of task performance as well as psychological measures.
+- `GNG_experiment_data_5-6-25_dictionary.xlsx`: Data dictionary accompanying the CSV file, detailing column definitions, coding schemes, and variable descriptions.
+- `param_recov_full_param_distributions.csv`: Parameter recovery results.
+- `param_recov_full_param_distributions_dictionary.xlsx`: Dictionary file providing explanations of each column in the parameter recovery CSV.
+
 
 ---
 
@@ -69,10 +79,14 @@ This repository contains MATLAB and Python scripts for modeling, simulating, and
 
 ---
 
+
 ## Dependencies
 
-- **MATLAB:** Required toolboxes include `spm12` and its `DEM` submodule.  
-- **Python 3.x:** Requires `os` and `subprocess` libraries.  
-- **Slurm:** Needed for batch processing.
+- **MATLAB:** Requires the [SPM12](https://www.fil.ion.ucl.ac.uk/spm/software/spm12/) toolbox, including the `DEM` submodule.  
+- **Python 3.x:** Requires standard libraries such as `os` and `subprocess`.  
+- **Slurm:** Needed for batch processing on high-performance computing clusters.  
+- **R (version ≥ 4.0):** Required packages include `tidyverse`, `Hmisc`, `corrplot`, `BayesFactor`, and `glue`.  
+- **RStudio (optional):** Recommended for running and knitting `.Rmd` files.  
+- **Microsoft Excel or compatible software:** Required to view `.xlsx` data dictionary and parameter recovery documentation files.
 
 ---
