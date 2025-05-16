@@ -1893,4 +1893,160 @@ model_summaries <- summarize_and_refine_model_lm(mf_models)
 
 ```
 
+```{r Power Sensitivity Analysis to Detect Group Differences in Pavlovian Bias}
+# library(Superpower)
+# model = lm(RLDDM_posterior_pavlovian_bias ~ group + age + sex,gngb_data)
+# summary(model)$r.squared
+# 
+# power_oneway_ancova(n = c(106, 88, 184), mu = c(.428,.529,.453),
+# r2 = 0.02811338, sd = .67)
+
+library(pwr)
+pwr.anova.test(k = 3, n = 378/3, sig.level = 0.05, power = .8)
+
+# Convert f to partial eta squared
+(0.1602912^2)  / (1+(0.1602912^2))
+
+```
+
+```{r Descriptive Statistics for Behavioral Measures}
+
+generate_descriptive_table <- function(df, col_labels, group_var = "group") {
+  # Get all combinations of group and resistance values
+  group_levels <- levels(df[[group_var]])
+
+  result_list <- list()
+  
+  for (g in group_levels) {
+      subset_df <- df %>% filter(.data[[group_var]] == g)
+      
+      summary_stats <- sapply(names(col_labels), function(param) {
+        m <- mean(subset_df[[param]], na.rm = TRUE)
+        s <- sd(subset_df[[param]], na.rm = TRUE)
+        sprintf("Mean=%.3f, SD=%.3f", m, s)
+      })
+      
+      result_list[[paste(g)]] <- summary_stats
+    
+  }
+  
+  summary_df <- as.data.frame(result_list)
+  rownames(summary_df) <- col_labels
+  return(summary_df)
+}
+
+
+cols <- c(
+  go_win_accuracy = "GTW Accuracy",
+  go_lose_accuracy = "GTL Accuracy",
+  nogo_win_accuracy = "NTW Accuracy",
+  nogo_lose_accuracy = "NTL Accuracy",
+  mean_rt_go_win = "GTW Reaction Time",
+  mean_rt_go_lose = "GTL Reaction Time",
+  mean_rt_nogo_win = "NTW Reaction Time",
+  mean_rt_nogo_lose = "NTL Reaction Time",
+  RLDDM_posterior_pavlovian_bias = "Pavlovian Bias",
+  RLDDM_posterior_learning_rate = "Learning Rate",
+  RLDDM_posterior_outcome_sensitivity = "Outcome Sensitivity",
+  RLDDM_posterior_go_bias = "Go Bias",
+  RLDDM_posterior_starting_bias = "Starting Bias",
+  RLDDM_posterior_decision_threshold = "Decision Threshold"
+)
+
+df <- df %>%
+  mutate(group = fct_relevel(group, "Healthy", "HasJustDepression", "HasComorbidDepAnx"))
+
+table = generate_descriptive_table(df, col_labels = cols)
+# write.csv(table,"L:/rsmith/lab-members/cgoldman/go_no_go/r_stats/statistical_output_for_manuscript/suff_stats_table.csv")
+
+# Plot histograms to confirm the assumptions of each test were met
+walk(names(cols), function(colname) {
+  p <- ggplot(gngb_data, aes(x = .data[[colname]])) +
+    geom_histogram(color = "black", fill = "lightblue", bins = 30) +
+    labs(title = cols[[colname]], x = cols[[colname]], y = "Frequency") +
+    theme_minimal()
+  
+  print(p)
+})
+
+# Plot residuals to confirm the assumptions of each test were met
+gngb_long_acc <- gngb_data %>%
+  gather(key = "condition", value = "accuracy",
+         go_win_accuracy, go_lose_accuracy, nogo_win_accuracy, nogo_lose_accuracy)
+
+gngb_long_acc$condition = factor(gngb_long_acc$condition, levels = c("go_lose_accuracy", "nogo_win_accuracy", "nogo_lose_accuracy","go_win_accuracy"))
+contrasts(gngb_long_acc$condition) = contr.Sum(levels(gngb_long_acc$condition))
+model_lme = lmer(accuracy ~ condition*group+age+sex+(1|id),gngb_long_acc)
+qqnorm(resid(model_lme))
+qqline(resid(model_lme))
+hist(resid(model),breaks=30)
+
+gngb_long_rt <- gngb_data %>%
+  gather(key = "condition", value = "rt",
+         mean_rt_go_win, mean_rt_go_lose, mean_rt_nogo_win, mean_rt_nogo_lose)
+gngb_long_rt$condition = factor(gngb_long_rt$condition, levels = c("mean_rt_go_lose", "mean_rt_nogo_win", "mean_rt_nogo_lose","mean_rt_go_win"))
+contrasts(gngb_long_rt$condition) = contr.Sum(levels(gngb_long_rt$condition))
+model = lmer(rt ~ condition*group+sex +age+(1|id),gngb_long_rt)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(go_lose_accuracy ~ group*phq_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(go_lose_accuracy ~ group*oasis_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(nogo_win_accuracy ~ group*phq_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(nogo_win_accuracy ~ group*oasis_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(mean_rt_go_lose ~ group*phq_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(mean_rt_go_lose ~ group*oasis_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(mean_rt_nogo_win ~ group*phq_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(mean_rt_nogo_win ~ group*oasis_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(RLDDM_posterior_pavlovian_bias ~ group*phq_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(RLDDM_posterior_pavlovian_bias ~ group*oasis_score + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+model = lm(RLDDM_posterior_pavlovian_bias ~ group + age + sex, gngb_data)
+qqnorm(resid(model))
+qqline(resid(model))
+hist(resid(model),breaks=30)
+
+
+
+```
 
