@@ -2,16 +2,16 @@
 # README
 
 
-This repository accompanies the manuscript *Pavlovian Bias is Associated with Symptom Severity but Not Diagnostic Status in Individuals with Affective Disorders* (Goldman et al., 2025). It provides the full set of scripts, data, and outputs used to model, fit, and analyze behavioral data from a Go/No-Go task using Reinforcement Learning Drift Diffusion Models (RLDDMs). The repository integrates MATLAB and Python code for computational modeling, along with R scripts and datasets for statistical analysis and visualization.
+This repository accompanies the manuscript *Pavlovian Bias is Associated with Symptom Severity but Not Diagnostic Status in Individuals with both Anxious and Non-Anxious Depression* (Goldman et al., 2025). It provides the full set of scripts, data, and outputs used to model, fit, and analyze behavioral data from a Go/No-Go task using Reinforcement Learning Drift Diffusion Models (RLDDMs). The repository integrates MATLAB and Python code for computational modeling, along with R scripts and datasets for statistical analysis and visualization.
 
 ## Data Analysis Files
 The `data_and_analysis_scripts/` folder contains the following:
 
-- `GNG_analyses_4-30-25.Rmd`: R Markdown notebook for conducting the main behavioral and statistical analyses reported in the paper. 
+- `GNG_analyses_5-13-25.Rmd`: R Markdown notebook for conducting the main behavioral and statistical analyses reported in the paper. 
 - `corrplotplus.R`: Custom R function for generating enhanced correlation matrices with annotated Bayes Factors or p-values, significance stars, and optional clustering.
 - `GNG_experiment_data_5-6-25.csv`: Dataset including computational and descriptive indices of task performance as well as psychological measures.
 - `GNG_experiment_data_5-6-25_dictionary.xlsx`: Data dictionary accompanying the CSV file, detailing column definitions, coding schemes, and variable descriptions.
-- `param_recov_full_param_distributions.csv`: Parameter recovery results.
+- `param_recov_full_param_distributions.csv`: Parameter recovery results using the full reasonable distributions of computational parameter values.
 - `param_recov_full_param_distributions_dictionary.xlsx`: Dictionary file providing explanations of each column in the parameter recovery CSV.
 
 
